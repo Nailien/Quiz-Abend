@@ -1,0 +1,950 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Quiz-Abend</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bowlby+One&family=Big+Shoulders+Display:wght@800;900&family=Figtree:wght@400;600;700&family=JetBrains+Mono:wght@700&display=swap" rel="stylesheet">
+<style>
+/* Layout: Fernsehstudio in Schwarz mit violettem Scheinwerferlicht von oben.
+   Brett mit weissen Punktzahlen auf Violett, zwei Teamkarten (Pink gegen Hellviolett) mit allen Spielerpunkten.
+   Bewusst nur ein dunkler Look, alle Farben stehen als Tokens hier. */
+:root{
+  color-scheme:dark;
+  --bg:#07050d; --bg-glow:#7a2cff; --ink:#fafaff; --muted:#bba9dc;
+  --panel:rgba(22,11,42,.82); --panel-line:rgba(190,150,255,.28);
+  --tile-top:#8b4dff; --tile-bot:#4a1bb5; --tile-edge:#230a66; --tile-rim:rgba(230,210,255,.55);
+  --head-top:#1f1436; --head-bot:#0d0818;
+  --accent:#ff3d9a; --accent-deep:#9c1160; --accent-ink:#14000b;
+  --used:#120a26; --good:#38e0a0; --bad:#ff8a8a;
+  --t1:#ff3d9a; --t2:#b69cff;
+  --display:'Bowlby One','Arial Black',Impact,sans-serif;
+  --num:'Big Shoulders Display','Arial Narrow',Impact,sans-serif;
+  --body:'Figtree',system-ui,-apple-system,'Segoe UI',sans-serif;
+  --mono:'JetBrains Mono',ui-monospace,Menlo,monospace;
+}
+html{background:var(--bg)}
+body{background-color:var(--bg);background-image:radial-gradient(ellipse 90% 60% at 50% -8%,var(--bg-glow) 0%,rgba(122,44,255,.35) 38%,rgba(7,5,13,0) 75%);background-repeat:no-repeat;background-attachment:fixed;color:var(--ink);font:16px/1.45 var(--body);padding-inline:16px;padding-block:22px 56px;margin:0;min-height:100%}
+*{box-sizing:border-box}
+.wrap{max-width:1120px;margin:0 auto;display:flex;flex-direction:column;gap:18px}
+.top{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.brand{margin:0;font:400 clamp(26px,6.5vw,46px)/1.05 var(--display);letter-spacing:.01em;text-transform:uppercase;color:#fff;text-shadow:0 4px 0 var(--accent),0 8px 22px rgba(0,0,0,.5);overflow-wrap:anywhere;min-width:0}
+.chip{font:700 13px var(--body);letter-spacing:.08em;text-transform:uppercase;padding:7px 14px;border-radius:999px;background:rgba(255,255,255,.1);border:2px solid var(--panel-line);color:var(--ink)}
+.muted{color:var(--muted)}
+.small{font-size:14px}
+.panel{background:var(--panel);border:2px solid var(--panel-line);border-radius:16px;padding:18px;min-width:0;backdrop-filter:blur(4px)}
+.panel h2{margin:0 0 12px;font:400 22px/1.1 var(--display);letter-spacing:.02em;text-transform:uppercase;color:var(--accent)}
+.stack{display:flex;flex-direction:column;gap:14px}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.field{display:flex;flex-direction:column;gap:6px;min-width:0}
+.field label{font:700 12px var(--body);letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+input,textarea{width:100%;font:inherit;padding:11px 13px;border-radius:10px;border:2px solid var(--panel-line);background:rgba(8,4,18,.8);color:var(--ink)}
+input::placeholder,textarea::placeholder{color:#8a76b8}
+textarea{resize:vertical;min-height:72px}
+input:focus-visible,textarea:focus-visible,button:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+.btn{font:700 16px var(--body);padding:11px 20px;border-radius:12px;border:0;background:linear-gradient(#ff7cba,var(--accent));color:var(--accent-ink);cursor:pointer;box-shadow:0 4px 0 var(--accent-deep),0 8px 18px rgba(0,0,0,.35);transition:transform .08s,filter .15s}
+.btn:hover{filter:brightness(1.07)}
+.btn:active{transform:translateY(3px);box-shadow:0 1px 0 var(--accent-deep)}
+.btn.ghost{background:rgba(255,255,255,.08);color:var(--ink);box-shadow:none;border:2px solid var(--panel-line)}
+.btn.danger{background:transparent;color:var(--bad);border:2px solid var(--bad);box-shadow:none}
+.mini{font:700 13px var(--body);padding:6px 11px;border-radius:8px;border:2px solid var(--panel-line);background:rgba(255,255,255,.07);color:var(--ink);cursor:pointer}
+.mini.good{border-color:var(--good);color:var(--good)}
+.mini.bad{border-color:var(--bad);color:var(--bad)}
+.mini:hover{filter:brightness(1.25)}
+.err{margin:0;color:var(--bad);font-weight:700}
+.note{margin:0;min-height:1.4em;color:var(--muted);font-size:14px}
+.login{max-width:460px;margin-inline:auto;width:100%}
+.code{font:700 22px var(--mono);letter-spacing:.1em;background:rgba(8,4,18,.8);border:2px dashed var(--accent);color:var(--accent);padding:6px 14px;border-radius:10px;user-select:all;overflow-wrap:anywhere}
+.tabs{display:flex;gap:8px;flex-wrap:wrap}
+.tab{font:700 15px var(--body);padding:9px 16px;border-radius:10px;border:2px solid var(--panel-line);background:rgba(255,255,255,.06);color:var(--ink);cursor:pointer}
+.tab[aria-selected="true"]{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.layout{display:grid;gap:18px;grid-template-columns:minmax(0,1fr)}
+@media (min-width:920px){.layout.admin{grid-template-columns:minmax(0,1fr) 350px;align-items:start}}
+.banner{padding:11px 15px;border-radius:10px;border:2px solid var(--accent);background:rgba(255,61,154,.12);font-weight:600}
+
+/* Brett */
+.board{display:grid;gap:7px;grid-template-columns:repeat(var(--n,3),minmax(0,1fr));padding:10px;border-radius:16px;background:rgba(8,4,18,.6);border:2px solid var(--panel-line)}
+.cat{background:linear-gradient(var(--head-top),var(--head-bot));color:#fff;font:400 clamp(11px,2.5vw,20px)/1.15 var(--display);text-transform:uppercase;text-align:center;padding:10px 4px;display:flex;align-items:center;justify-content:center;min-height:3.6em;border-radius:8px;border-bottom:4px solid var(--accent);overflow-wrap:anywhere}
+.tile{border:2px solid var(--tile-rim);border-radius:8px;background:linear-gradient(var(--tile-top),var(--tile-bot));color:#fff;font:900 clamp(26px,7vw,58px)/1 var(--num);letter-spacing:.02em;padding-block:clamp(12px,3.6vw,28px);cursor:default;min-width:0;text-shadow:0 3px 0 rgba(25,0,70,.65),0 0 20px rgba(255,61,154,.6);box-shadow:0 5px 0 var(--tile-edge),inset 0 2px 0 rgba(255,255,255,.25)}
+.tile.used{background:var(--used);border-color:transparent;color:transparent;text-shadow:none;box-shadow:inset 0 3px 8px rgba(0,0,0,.6)}
+.tile.none{background:transparent;border-color:transparent;box-shadow:none;text-shadow:none}
+.board.pick .tile.open,.board.admin .tile.open{cursor:pointer}
+.board.pick .tile.open:hover,.board.admin .tile.open:hover{filter:brightness(1.22);transform:translateY(-2px)}
+.board.pick .tile.open{animation:glow 1.6s ease-in-out infinite}
+@keyframes glow{0%,100%{box-shadow:0 5px 0 var(--tile-edge),inset 0 2px 0 rgba(255,255,255,.25),0 0 0 0 rgba(255,61,154,0)}50%{box-shadow:0 5px 0 var(--tile-edge),inset 0 2px 0 rgba(255,255,255,.25),0 0 0 4px rgba(255,61,154,.9)}}
+@media (prefers-reduced-motion:reduce){.board.pick .tile.open{animation:none;box-shadow:0 5px 0 var(--tile-edge),0 0 0 3px var(--accent)}}
+.turnline{margin:0;font:400 clamp(18px,4vw,28px)/1.15 var(--display);letter-spacing:.01em;text-transform:uppercase;text-align:center}
+.turnline.me{color:var(--accent)}
+
+/* Frage */
+.qcard{background:linear-gradient(var(--tile-top),var(--tile-bot));border:3px solid var(--tile-rim);border-radius:18px;padding:clamp(20px,5vw,44px);text-align:center;display:flex;flex-direction:column;gap:18px;align-items:center;box-shadow:0 8px 0 var(--tile-edge),0 20px 40px rgba(0,0,0,.4)}
+.qmeta{font:400 clamp(16px,3.6vw,24px)/1.1 var(--display);letter-spacing:.03em;text-transform:uppercase;color:#fff;text-shadow:0 3px 0 var(--accent)}
+.qtext{margin:0;font:700 clamp(22px,5vw,40px)/1.25 var(--body);text-wrap:balance;overflow-wrap:anywhere;text-shadow:0 2px 0 rgba(20,0,60,.5)}
+.qans{padding:16px 24px;border-radius:14px;background:#fff;color:#14000b;border:0;box-shadow:0 6px 0 var(--accent);font:800 clamp(26px,6vw,46px)/1.2 var(--body);overflow-wrap:anywhere;max-width:100%;text-wrap:balance}
+.qans .qlabel{color:var(--accent-deep)}
+.qans.pop{animation:pop .4s cubic-bezier(.2,1.4,.4,1)}
+@keyframes pop{0%{transform:scale(.7);opacity:0}100%{transform:scale(1);opacity:1}}
+@media (prefers-reduced-motion:reduce){.qans.pop{animation:none}}
+.qlabel{font:700 12px var(--body);letter-spacing:.1em;text-transform:uppercase;color:var(--accent);display:block;margin-bottom:4px}
+.solution{border-color:var(--panel-line)}
+.solution.shown{border-color:var(--accent)}
+.solutiontext{margin:0;font:800 clamp(24px,5vw,38px)/1.2 var(--body);overflow-wrap:anywhere}
+.bigbtn{font-size:18px;padding:14px 24px;width:100%}
+.qitem.on{border-color:var(--accent)}
+.qtitle{font:400 20px/1.2 var(--display);text-transform:uppercase;overflow-wrap:anywhere;min-width:0}
+
+/* Teams */
+.teams{display:grid;gap:12px;grid-template-columns:repeat(2,minmax(0,1fr))}
+.teams.side{grid-template-columns:minmax(0,1fr)}
+@media (max-width:560px){.teams.side{grid-template-columns:minmax(0,1fr)}}
+.team{--tc:var(--t1);background:var(--panel);border:2px solid var(--tc);border-radius:16px;padding:14px;min-width:0;display:flex;flex-direction:column;gap:10px;box-shadow:0 0 0 3px rgba(0,0,0,.2),0 0 26px -6px var(--tc)}
+.team.t2{--tc:var(--t2)}
+.team.lead{background:linear-gradient(rgba(255,255,255,.07),rgba(255,255,255,.07)),var(--panel)}
+.thead{display:flex;align-items:baseline;justify-content:space-between;gap:10px;min-width:0}
+.tname{font:400 clamp(15px,3.4vw,20px)/1.1 var(--display);text-transform:uppercase;color:var(--tc);overflow-wrap:anywhere;min-width:0}
+.ttotal{font:900 clamp(34px,8vw,54px)/.95 var(--num);font-variant-numeric:tabular-nums;color:var(--ink);text-shadow:0 3px 0 rgba(0,0,0,.35)}
+.prow{padding:10px 0 0;border-top:1px solid var(--panel-line);display:flex;flex-direction:column;gap:8px}
+.phead{display:flex;align-items:center;gap:8px;min-width:0}
+.pname{min-width:0;overflow-wrap:anywhere;font-weight:700}
+.pscore{margin-left:auto;font:900 clamp(24px,5vw,32px)/1 var(--num);font-variant-numeric:tabular-nums;color:var(--accent)}
+.pact{display:flex;gap:6px;flex-wrap:wrap}
+.tag{font:700 11px var(--body);letter-spacing:.08em;text-transform:uppercase;padding:3px 9px;border-radius:999px;background:var(--accent);color:var(--accent-ink);white-space:nowrap}
+.dot{width:10px;height:10px;border-radius:50%;background:#5b4a86;flex:none}
+.dot.on{background:var(--good);box-shadow:0 0 8px var(--good)}
+.noplayer{margin:0;color:var(--muted);font-size:14px}
+
+/* Editor */
+.cated{display:flex;flex-direction:column;gap:12px}
+.qrow{display:grid;grid-template-columns:64px minmax(0,1fr);gap:10px;align-items:start}
+.qpts{font:900 30px/1 var(--num);color:var(--accent);padding-top:10px}
+@media (prefers-reduced-motion:no-preference){.tile{transition:filter .15s,transform .1s}}
+.tablewrap{overflow-x:auto}
+.results{width:100%;border-collapse:collapse;font-size:15px}
+.results th{font:700 12px var(--body);letter-spacing:.08em;text-transform:uppercase;color:var(--muted);text-align:left;padding:8px 10px;border-bottom:2px solid var(--panel-line);white-space:nowrap}
+.results td{padding:10px;border-bottom:1px solid var(--panel-line);vertical-align:middle}
+.results tr:last-child td{border-bottom:0}
+.tbadge{display:inline-block;font:400 13px/1 var(--display);text-transform:uppercase;padding:5px 9px;border-radius:999px;border:2px solid var(--tc,var(--t1));color:var(--tc,var(--t1));white-space:nowrap}
+.tbadge.t1{--tc:var(--t1)}.tbadge.t2{--tc:var(--t2)}
+.resbanner{padding:12px 18px;border-radius:12px;font:800 clamp(18px,4vw,26px)/1.25 var(--body);background:rgba(8,4,18,.6);border:2px solid var(--good);color:var(--good);overflow-wrap:anywhere;max-width:100%}
+.resbanner.bad{border-color:var(--bad);color:var(--bad)}
+.okcell{color:var(--good);font-weight:700;white-space:nowrap}.badcell{color:var(--bad);font-weight:700;white-space:nowrap}
+</style>
+<div id="app"></div>
+<script>
+'use strict';
+const LS = 'quizabend.v1';
+const store = {
+  get() { try { return JSON.parse(localStorage.getItem(LS)) || {}; } catch (e) { return {}; } },
+  set(v) { try { localStorage.setItem(LS, JSON.stringify(v)); } catch (e) { /* ignorieren */ } }
+};
+const use = n => (window.claude && window.claude.use) ? window.claude.use(n) : Promise.resolve(null);
+const $ = s => document.querySelector(s);
+
+function el(tag, props, ...kids) {
+  const e = document.createElement(tag);
+  if (props) for (const k in props) {
+    const v = props[k];
+    if (v == null || v === false) continue;
+    if (k === 'class') e.className = v;
+    else if (k === 'text') e.textContent = v;
+    else if (k.startsWith('on')) e.addEventListener(k.slice(2), v);
+    else if (v === true) e.setAttribute(k, '');
+    else e.setAttribute(k, v);
+  }
+  for (const kid of kids.flat()) {
+    if (kid == null || kid === false) continue;
+    e.append(kid.nodeType ? kid : document.createTextNode(String(kid)));
+  }
+  return e;
+}
+
+const clean = n => String(n == null ? '' : n).replace(/[\p{C}]/gu, '').trim().slice(0, 16);
+const norm = c => String(c || '').trim().toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9_.-]/g, '').replace(/^[^a-z0-9]+/, '').slice(0, 48);
+const ALPHA = 'abcdefghjkmnpqrstuvwxyz23456789';
+function rand(n) {
+  const a = new Uint32Array(n);
+  crypto.getRandomValues(a);
+  return Array.from(a, x => ALPHA[x % ALPHA.length]).join('');
+}
+const clone = o => JSON.parse(JSON.stringify(o));
+
+function defaultBoard() {
+  const q = (q, a) => ({ q, a });
+  return {
+    title: 'Quiz-Abend',
+    values: [100, 200, 300, 400, 500],
+    cats: [
+      { name: 'Allgemeinwissen', qs: [
+        q('Wie viele Kontinente gibt es?', '7'),
+        q('Welcher Planet ist der Sonne am nächsten?', 'Merkur'),
+        q('Wie heisst die Hauptstadt von Australien?', 'Canberra'),
+        q('Welches chemische Symbol hat Gold?', 'Au'),
+        q('In welchem Jahr fiel die Berliner Mauer?', '1989')] },
+      { name: 'Schweiz', qs: [
+        q('Wie heisst die Hauptstadt der Schweiz?', 'Bern'),
+        q('Wie viele Kantone hat die Schweiz?', '26'),
+        q('Wie heisst der höchste Berg, der ganz in der Schweiz liegt?', 'Dufourspitze'),
+        q('Welcher Fluss fliesst durch die Stadt Zürich?', 'Die Limmat'),
+        q('Welche ist die vierte Landessprache neben Deutsch, Französisch und Italienisch?', 'Rätoromanisch')] },
+      { name: 'Gaming', qs: [
+        q('Wie heisst der Klempner mit der roten Mütze aus den Nintendo-Spielen?', 'Mario'),
+        q('Welches Spiel aus Blöcken wurde von Mojang entwickelt?', 'Minecraft'),
+        q('Welches Battle-Royale-Spiel von Epic Games hat einen Bus, der über die Insel fliegt?', 'Fortnite'),
+        q('Wie heisst die Hauptfigur der Zelda-Reihe?', 'Link'),
+        q('Welche Firma hat die PlayStation entwickelt?', 'Sony')] }
+    ]
+  };
+}
+function blankBoard() {
+  const cat = n => ({ name: n, qs: [1, 2, 3, 4, 5].map(() => ({ q: '', a: '' })) });
+  return { title: 'Neues Quiz', values: [100, 200, 300, 400, 500], cats: [cat('Thema 1'), cat('Thema 2'), cat('Thema 3')] };
+}
+const emptyGame = () => ({ used: {}, scores: {}, chooser: '', cur: null, lastCorrect: '', team: {}, tn: ['Team 1', 'Team 2'], turn: 0, hist: [], showResult: false });
+
+const S = {
+  mode: 'boot', isOwner: false, db: null, room: null, nr: null, secret: null,
+  board: null, game: emptyGame(), tab: 'game', draft: null, peers: [],
+  pstate: null, me: '', lastState: 0, seq: 0, confirmReset: false, live: true
+};
+const handled = new Set();
+let baseline = false;
+let hb = null, joinTimer = null, staleTimer = null, noteTimer = null;
+
+function setNote(msg) {
+  const n = $('#note');
+  if (!n) return;
+  n.textContent = msg || '';
+  clearTimeout(noteTimer);
+  if (msg) noteTimer = setTimeout(() => { const m = $('#note'); if (m) m.textContent = ''; }, 3500);
+}
+function showErr(msg) {
+  const n = $('#err');
+  if (!n) return;
+  n.textContent = msg || '';
+  n.hidden = !msg;
+}
+
+/* ---------- Spielzustand (Admin) ---------- */
+function sanitizeGame() {
+  const b = S.board, g = S.game;
+  for (const k of Object.keys(g.used)) {
+    const [c, r] = k.split('-').map(Number);
+    if (!b.cats[c] || r >= b.values.length) delete g.used[k];
+  }
+  if (g.cur && (!b.cats[g.cur.c] || !b.cats[g.cur.c].qs[g.cur.r] || !b.cats[g.cur.c].qs[g.cur.r].q.trim())) g.cur = null;
+  for (const n of Object.keys(g.scores)) if (typeof g.scores[n] !== 'number') g.scores[n] = 0;
+}
+
+function publicState(inc) {
+  const b = S.board, g = S.game;
+  const cats = b.cats.map((c, ci) => ({
+    n: c.name,
+    t: b.values.map((v, ri) => {
+      const x = c.qs[ri];
+      if (!x || !x.q.trim()) return 0;
+      return g.used[ci + '-' + ri] ? 2 : 1;
+    })
+  }));
+  let q = null;
+  if (g.cur) {
+    const c = b.cats[g.cur.c], x = c && c.qs[g.cur.r];
+    if (x) q = { c: g.cur.c, r: g.cur.r, p: b.values[g.cur.r], d: isDone(g.cur) ? 1 : 0, w: g.cur.ok || '', ok: g.cur.res === 0 ? 0 : 1, cat: c.name, t: x.q.slice(0, 500), a: g.cur.revealed ? x.a.slice(0, 200) : null };
+  }
+  return { title: b.title, vals: b.values, cats, q, ch: g.chooser, tu: g.turn === 1 ? 1 : 0, h: q ? [] : g.hist.slice(-30), sr: !!g.showResult, sc: g.scores, tm: g.team, tn: g.tn, seq: inc ? ++S.seq : S.seq };
+}
+
+function broadcast() {
+  if (!S.nr || S.mode !== 'admin') return;
+  const st = publicState(true);
+  S.nr.emit('state', st).catch(e => {
+    if (!S.emitWarned) { S.emitWarned = true; setNote('Senden an die Spieler fehlgeschlagen (' + ((e && e.code) || 'Fehler') + ').'); }
+  });
+  /* Zweiter Weg: derselbe Stand in der Anwesenheit des Admins, damit auch Neue ihn sofort bekommen */
+  let s = st;
+  try { if (new Blob([JSON.stringify(st)]).size > 3600) s = null; } catch (e) { s = null; }
+  S.nr.presence({ role: 'admin', s }).catch(() => {});
+}
+
+let saveT = null, saving = Promise.resolve();
+function saveGame() {
+  clearTimeout(saveT);
+  saveT = setTimeout(() => {
+    const snap = clone(S.game);
+    saving = saving.then(() => S.db.doc('quiz/g_' + S.qid).set(snap)).catch(() => setNote('Spielstand konnte nicht gespeichert werden.'));
+  }, 400);
+}
+
+function liveView() { return S.mode === 'admin' && (S.tab === 'game' || S.preview); }
+
+function commit() {
+  saveGame();
+  broadcast();
+  if (liveView()) render();
+}
+
+/* Reihenfolge abwechselnd: Team 1, Team 2, Team 1, Team 2 */
+function order() {
+  const g = S.game, names = Object.keys(g.scores);
+  const t0 = names.filter(n => g.team[n] === 0), t1 = names.filter(n => g.team[n] === 1);
+  const rest = names.filter(n => g.team[n] !== 0 && g.team[n] !== 1);
+  const out = [];
+  for (let i = 0; i < Math.max(t0.length, t1.length); i++) { if (t0[i]) out.push(t0[i]); if (t1[i]) out.push(t1[i]); }
+  return out.concat(rest);
+}
+function nextOf(n) {
+  const k = order();
+  if (!k.length) return '';
+  return k[(k.indexOf(n) + 1) % k.length];
+}
+function toggleResult() { S.game.showResult = !S.game.showResult; commit(); }
+function setTurn(t) { S.game.turn = t; commit(); }
+function setTeam(name, t) { S.game.team[name] = t; commit(); }
+function openTile(c, r) {
+  const g = S.game;
+  if (g.cur || g.used[c + '-' + r]) return;
+  const x = S.board.cats[c] && S.board.cats[c].qs[r];
+  if (!x || !x.q.trim()) return;
+  g.cur = { c, r, revealed: false, team: g.turn === 1 ? 1 : 0, ok: '' };
+  commit();
+}
+function reveal() { if (S.game.cur) { S.game.cur.revealed = true; commit(); } }
+function isDone(cur) { return !!(cur && (cur.done || cur.revealed)); }
+function answer(name, correct) {
+  const g = S.game;
+  if (!g.cur || isDone(g.cur)) return;
+  const p = S.board.values[g.cur.r];
+  if (correct) g.scores[name] = (g.scores[name] || 0) + p;
+  g.cur.done = true; g.cur.revealed = true; g.cur.ok = name; g.cur.res = correct ? 1 : 0;
+  g.hist.push([g.cur.c, p, g.cur.team === 1 ? 1 : (g.cur.team === 0 ? 0 : (g.turn === 1 ? 1 : 0)), name, correct ? 1 : 0]);
+  commit();
+}
+function adjust(name, d) { S.game.scores[name] = (S.game.scores[name] || 0) + d; commit(); }
+function setChooser(name) { S.game.chooser = name; commit(); }
+function closeQ() {
+  const g = S.game;
+  if (!g.cur || !isDone(g.cur)) return;
+  g.used[g.cur.c + '-' + g.cur.r] = true;
+  g.cur = null;
+  g.turn = g.turn === 1 ? 0 : 1;
+  g.lastCorrect = '';
+  commit();
+}
+function removePlayer(name) {
+  const g = S.game;
+  if (g.chooser === name) g.chooser = nextOf(name) === name ? '' : nextOf(name);
+  delete g.scores[name];
+  delete g.team[name];
+  commit();
+}
+function resetGame() {
+  const g = S.game;
+  for (const n of Object.keys(g.scores)) g.scores[n] = 0;
+  g.used = {}; g.cur = null; g.lastCorrect = '';
+  g.chooser = order()[0] || '';
+  g.turn = 0; g.hist = []; g.showResult = false;
+  S.confirmReset = false;
+  commit();
+}
+
+function onAdminPeers(ch) {
+  S.peers = ch.peers;
+  let changed = false;
+  for (const p of ch.peers) {
+    const pr = p.presence || {};
+    if (pr.role !== 'player') continue;
+    const name = clean(pr.name);
+    if (!name) continue;
+    if (!(name in S.game.scores)) { S.game.scores[name] = 0; changed = true; }
+    if (S.game.team[name] !== 0 && S.game.team[name] !== 1) {
+      const vals = Object.keys(S.game.scores).filter(n => n !== name).map(n => S.game.team[n]);
+      S.game.team[name] = vals.filter(v => v === 0).length <= vals.filter(v => v === 1).length ? 0 : 1;
+      changed = true;
+    }
+    if (!S.game.chooser) { S.game.chooser = name; changed = true; }
+  }
+  if (changed) commit();
+  else if (ch.joined.length) { setTimeout(broadcast, 300); if (liveView()) render(); }
+  else if (liveView()) render();
+}
+
+async function joinAdminRoom() {
+  await closeRoom(false);
+  if (!S.room) { S.live = false; return; }
+  baseline = false; handled.clear();
+  try {
+    S.nr = await S.room.join(norm(S.board.code));
+    S.nr.onPeers(onAdminPeers);
+    await S.nr.presence({ role: 'admin' });
+    S.live = true;
+    hb = setInterval(broadcast, 4000);
+    setTimeout(() => { baseline = true; }, 1500);
+    broadcast();
+  } catch (e) { S.live = false; }
+}
+
+/* ---------- Start und Anmeldung ---------- */
+async function boot() {
+  render();
+  const [user, db, room] = await Promise.all([use('user'), use('db'), use('room')]);
+  S.db = db; S.room = room;
+  S.isOwner = user ? await user.isOwner() : false;
+  if (S.isOwner && db) {
+    try {
+      const snap = await db.doc('quiz/secret').get();
+      S.secret = snap.exists ? clone(snap.data()) : null;
+    } catch (e) { S.secret = null; }
+    S.mode = S.secret ? 'login' : 'setup';
+  } else {
+    S.mode = 'login';
+  }
+  render();
+}
+
+async function loadIndex() {
+  const idx = await S.db.doc('quiz/index').get();
+  if (idx.exists) { S.idx = clone(idx.data()); }
+  else {
+    /* Erste Nutzung oder Umstieg von der alten Version: ein Quiz anlegen */
+    const [b, g] = await Promise.all([S.db.doc('quiz/board').get(), S.db.doc('quiz/game').get()]);
+    const board = b.exists ? clone(b.data()) : defaultBoard();
+    const game = Object.assign(emptyGame(), g.exists ? clone(g.data()) : {});
+    const code = S.firstCode || (S.secret && S.secret.gameCode) || ('quiz-' + rand(4));
+    S.idx = { items: [{ id: 'q1', title: board.title, code }], active: 'q1' };
+    await S.db.doc('quiz/b_q1').set(board);
+    await S.db.doc('quiz/g_q1').set(game);
+    await S.db.doc('quiz/index').set(S.idx);
+  }
+  if (!S.idx.items.some(x => x.id === S.idx.active)) S.idx.active = S.idx.items[0].id;
+}
+
+async function loadQuiz(id) {
+  const [b, g] = await Promise.all([S.db.doc('quiz/b_' + id).get(), S.db.doc('quiz/g_' + id).get()]);
+  S.qid = id;
+  S.board = b.exists ? clone(b.data()) : blankBoard();
+  S.board.code = S.idx.items.find(x => x.id === id).code;
+  S.game = Object.assign(emptyGame(), g.exists ? clone(g.data()) : {});
+  if (!S.game.team || typeof S.game.team !== 'object') S.game.team = {};
+  if (!Array.isArray(S.game.tn) || S.game.tn.length !== 2) S.game.tn = ['Team 1', 'Team 2'];
+  if (!Array.isArray(S.game.hist)) S.game.hist = [];
+  sanitizeGame();
+}
+
+async function enterAdmin() {
+  try { await loadIndex(); await loadQuiz(S.idx.active); }
+  catch (e) {
+    S.idx = { items: [{ id: 'q1', title: 'Quiz-Abend', code: 'quiz-' + rand(4) }], active: 'q1' };
+    S.qid = 'q1'; S.board = defaultBoard(); S.board.code = S.idx.items[0].code; S.game = emptyGame();
+    setTimeout(() => setNote('Gespeicherte Daten konnten nicht geladen werden.'), 200);
+  }
+  S.tab = 'game';
+  S.mode = 'admin';
+  render();
+  await joinAdminRoom();
+  render();
+}
+
+/* ---------- Mehrere Quizze, jedes mit eigenem Code ---------- */
+function codeProblem(code, exceptId) {
+  const n = norm(code);
+  if (n.length < 4) return 'Der Code braucht mindestens 4 Zeichen (Buchstaben, Ziffern, - und _).';
+  if (S.secret && norm(S.secret.adminCode) === n) return 'Das ist dein Admin-Code. Wähle einen anderen.';
+  if (S.idx.items.some(x => x.id !== exceptId && norm(x.code) === n)) return 'Dieser Code gehört schon zu einem anderen Quiz.';
+  return '';
+}
+function uniqueCode() {
+  let c;
+  do { c = 'quiz-' + rand(4); } while (codeProblem(c, ''));
+  return c;
+}
+async function persistIndex() { await S.db.doc('quiz/index').set(clone(S.idx)); }
+
+async function closeRoom(notify) {
+  if (hb) clearInterval(hb);
+  hb = null;
+  if (S.nr) {
+    if (notify) {
+      try { await S.nr.emit('state', { closed: true }); await new Promise(r => setTimeout(r, 500)); } catch (e) { /* ignorieren */ }
+    }
+    try { await S.nr.leave(); } catch (e) { /* ignorieren */ }
+    S.nr = null;
+  }
+}
+
+async function switchQuiz(id) {
+  if (id === S.qid || S.busy) return;
+  S.busy = true;
+  try {
+    clearTimeout(saveT);
+    try { await S.db.doc('quiz/g_' + S.qid).set(clone(S.game)); } catch (e) { /* ignorieren */ }
+    await closeRoom(true);
+    S.idx.active = id;
+    await persistIndex();
+    S.peers = [];
+    await loadQuiz(id);
+    await joinAdminRoom();
+    setNote('Quiz gewechselt. Jetzt gilt der Code dieses Quiz.');
+  } catch (e) { setNote('Wechsel fehlgeschlagen. Versuche es noch einmal.'); }
+  S.busy = false;
+  render();
+}
+
+async function createQuiz() {
+  if (S.busy) return;
+  if (S.idx.items.length >= 20) return setNote('Mehr als 20 Quizze sind nicht möglich.');
+  const id = 'q' + Date.now().toString(36);
+  const board = blankBoard();
+  try {
+    await S.db.doc('quiz/b_' + id).set(board);
+    await S.db.doc('quiz/g_' + id).set(emptyGame());
+    S.idx.items.push({ id, title: board.title, code: uniqueCode() });
+    await persistIndex();
+  } catch (e) { return setNote('Quiz konnte nicht angelegt werden.'); }
+  await switchQuiz(id);
+  S.tab = 'edit'; S.draft = clone(S.board);
+  render();
+}
+
+async function changeCode(id, code) {
+  const p = codeProblem(code, id);
+  if (p) return p;
+  const it = S.idx.items.find(x => x.id === id), c = code.trim();
+  try {
+    if (id === S.qid) {
+      await closeRoom(true);
+      it.code = c; S.board.code = c;
+      await persistIndex();
+      await joinAdminRoom();
+    } else { it.code = c; await persistIndex(); }
+  } catch (e) { return 'Speichern fehlgeschlagen. Versuche es noch einmal.'; }
+  return '';
+}
+
+async function deleteQuiz(id) {
+  if (id === S.qid || S.idx.items.length < 2) return;
+  try {
+    await S.db.doc('quiz/b_' + id).delete();
+    await S.db.doc('quiz/g_' + id).delete();
+    S.idx.items = S.idx.items.filter(x => x.id !== id);
+    await persistIndex();
+  } catch (e) { return setNote('Löschen fehlgeschlagen.'); }
+  S.confirmDel = '';
+  setNote('Quiz gelöscht.');
+  render();
+}
+
+function acceptState(d) {
+  if (!d || !Array.isArray(d.cats) || !Array.isArray(d.vals)) return;
+  S.pstate = d; S.lastState = Date.now();
+  S.mode = 'player';
+  render();
+}
+
+async function enterPlayer(rn, name) {
+  S.mode = 'join'; S.me = name; S.pstate = null; S.lastEmit = 0;
+  render();
+  try { S.nr = await S.room.join(rn); }
+  catch (e) { return leaveToLogin('Beitritt nicht möglich (' + ((e && e.code) || 'Fehler') + ').'); }
+  const room = S.nr;
+  room.on('state', m => {
+    const d = m && m.data;
+    if (d && d.closed) { leaveToLogin('Das Quiz wurde beendet oder der Code wurde geändert. Gib den neuen Code ein.'); return; }
+    S.lastEmit = Date.now();
+    acceptState(d);
+  }, e => { S.roomErr = (e && e.code) || 'Fehler'; });
+  room.onPeers(ch => {
+    if (S.nr !== room || Date.now() - S.lastEmit < 6000) return;
+    const a = ch.peers.find(p => p.presence && p.presence.role === 'admin' && p.presence.s);
+    if (a) acceptState(a.presence.s);
+  }, e => { S.roomErr = (e && e.code) || 'Fehler'; });
+  await room.presence({ role: 'player', name });
+  joinTimer = setTimeout(() => {
+    if (S.pstate || S.nr !== room) return;
+    const peers = room.peers();
+    const admin = peers.some(p => p.presence && p.presence.role === 'admin');
+    let why;
+    if (S.roomErr) why = 'Die Live-Verbindung wurde abgelehnt (' + S.roomErr + '). Öffne die Seite über deine Einladung und melde dich bei Claude an.';
+    else if (!room.connected()) why = 'Keine Verbindung zum Live-Server. Lade die Seite neu.';
+    else if (admin) why = 'Der Admin ist verbunden, hat aber noch keinen Spielstand geschickt. Versuche es in ein paar Sekunden noch einmal.';
+    else why = 'Mit diesem Code ist niemand im Spiel. Prüfe den Code (nicht den Admin-Code) und frage den Admin, ob er die Seite offen hat.';
+    leaveToLogin(why);
+  }, 10000);
+  staleTimer = setInterval(() => { if (S.mode === 'player') render(); }, 3000);
+}
+
+async function leaveToLogin(msg) {
+  clearTimeout(joinTimer); clearInterval(staleTimer);
+  if (S.nr) { try { await S.nr.leave(); } catch (e) { /* ignorieren */ } S.nr = null; }
+  S.mode = 'login'; S.pstate = null; S.roomErr = '';
+  render();
+  showErr(msg);
+}
+
+/* ---------- Ansichten ---------- */
+function field(label, id, input) {
+  return el('div', { class: 'field' }, el('label', { for: id, text: label }), input);
+}
+function shell(title, right, ...body) {
+  return el('div', { class: 'wrap' },
+    el('header', { class: 'top' }, el('h1', { class: 'brand', text: title }), right || null),
+    ...body,
+    el('p', { id: 'note', class: 'note', role: 'status' }));
+}
+function copyText(text, btn, codeEl) {
+  const mark = () => {
+    const r = document.createRange(); r.selectNodeContents(codeEl);
+    const s = getSelection(); s.removeAllRanges(); s.addRange(r);
+    btn.textContent = 'Markiert';
+  };
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(() => { btn.textContent = 'Kopiert'; setTimeout(() => { btn.textContent = 'Kopieren'; }, 1500); }, mark);
+  } else mark();
+}
+
+function viewBoot() { return shell('Quiz-Abend', null, el('p', { class: 'muted', text: 'Lade …' })); }
+
+function viewSetup() {
+  const a = el('input', { id: 'su-admin', value: rand(8), autocomplete: 'off', spellcheck: 'false' });
+  const g = el('input', { id: 'su-game', value: 'quiz-' + rand(4), autocomplete: 'off', spellcheck: 'false' });
+  const err = el('p', { id: 'err', class: 'err', hidden: true, role: 'alert' });
+  const form = el('form', { class: 'panel login stack', onsubmit: async e => {
+    e.preventDefault();
+    const ac = a.value.trim(), gc = g.value.trim();
+    if (ac.length < 4 || norm(gc).length < 4) return showErr('Beide Codes brauchen mindestens 4 Zeichen (Buchstaben, Ziffern, - und _).');
+    if (ac === gc || norm(gc) === norm(ac)) return showErr('Admin-Code und Spielcode müssen sich unterscheiden.');
+    try { await S.db.doc('quiz/secret').set({ adminCode: ac }); }
+    catch (x) { return showErr('Speichern fehlgeschlagen. Versuche es noch einmal.'); }
+    S.secret = { adminCode: ac };
+    S.firstCode = gc;
+    enterAdmin();
+  } },
+  el('h2', { text: 'Erste Einrichtung' }),
+  el('p', { class: 'muted', text: 'Der Admin-Code gehört nur dir und öffnet die Spielleitung. Den Spielcode gibst du deinen Freunden. Jedes Quiz bekommt später seinen eigenen Code, und du kannst ihn jederzeit ändern.' }),
+  field('Dein Admin-Code', 'su-admin', a),
+  field('Spielcode für dein erstes Quiz', 'su-game', g),
+  err,
+  el('button', { class: 'btn', type: 'submit', text: 'Speichern und starten' }));
+  return shell('Quiz-Abend', el('span', { class: 'chip', text: 'Einrichtung' }), form);
+}
+
+function viewLogin() {
+  const saved = store.get();
+  const code = el('input', { id: 'code', value: '', autocomplete: 'off', autocapitalize: 'off', spellcheck: 'false' });
+  const name = el('input', { id: 'pname', value: saved.name || '', maxlength: '16', autocomplete: 'nickname' });
+  const err = el('p', { id: 'err', class: 'err', hidden: true, role: 'alert' });
+  const form = el('form', { class: 'panel login stack', onsubmit: e => {
+    e.preventDefault();
+    const c = code.value.trim();
+    if (!c) return showErr('Bitte gib einen Code ein.');
+    if (S.isOwner && S.secret && c === S.secret.adminCode) { store.set({ name: name.value }); return enterAdmin(); }
+    const n = clean(name.value);
+    if (!n) { name.focus(); return showErr('Bitte gib deinen Namen ein.'); }
+    if (!S.room) return showErr('Die Live-Verbindung fehlt. Öffne die Seite über deine Einladung und melde dich in Claude an.');
+    const rn = norm(c);
+    if (rn.length < 2) return showErr('Dieser Code ist ungültig.');
+    store.set({ name: n });
+    enterPlayer(rn, n);
+  } },
+  el('h2', { text: 'Anmelden' }),
+  field('Code', 'code', code),
+  field('Dein Name (für Spieler)', 'pname', name),
+  err,
+  el('button', { class: 'btn', type: 'submit', text: 'Los geht’s' }),
+  el('p', { class: 'muted small', text: 'Spieler geben den Spielcode ihres Admins ein. Für jedes Quiz gibt es einen eigenen Code. Der Admin nutzt seinen eigenen Code.' }));
+  return shell('Quiz-Abend', null, form);
+}
+
+function viewJoin() {
+  return shell('Quiz-Abend', null, el('div', { class: 'panel login' }, el('p', { text: 'Verbinde mit dem Spiel …' })));
+}
+
+/* Brett: st hat die Form von publicState() */
+function boardEl(st, mode, onPick) {
+  const b = el('div', { class: 'board ' + mode, style: '--n:' + st.cats.length });
+  st.cats.forEach(c => b.append(el('div', { class: 'cat', text: c.n })));
+  st.vals.forEach((v, r) => st.cats.forEach((c, ci) => {
+    const t = c.t[r];
+    const live = t === 1 && onPick;
+    b.append(el('button', {
+      type: 'button',
+      class: 'tile ' + (t === 1 ? 'open' : t === 2 ? 'used' : 'none'),
+      disabled: !live,
+      'aria-label': t === 1 ? c.n + ' für ' + v + ' Punkte' : null,
+      'aria-hidden': t === 1 ? null : 'true',
+      tabindex: live ? null : '-1',
+      text: t === 1 ? String(v) : '',
+      onclick: live ? () => onPick(ci, r) : null
+    }));
+  }));
+  return b;
+}
+
+function resultBanner(q) {
+  if (!q || !q.d) return null;
+  return el('div', { class: 'resbanner ' + (q.ok ? 'good' : 'bad'),
+    text: q.ok ? '\u2713 ' + q.w + ' liegt richtig: +' + q.p + ' Punkte' : '\u2717 ' + q.w + ' liegt falsch: 0 Punkte' });
+}
+
+function qcard(q, answerText, answerNote) {
+  return el('div', { class: 'qcard' },
+    el('div', { class: 'qmeta', text: q.cat + ' für ' + q.p }),
+    el('p', { class: 'qtext', text: q.t }),
+    resultBanner(q),
+    answerText != null ? el('div', { class: 'qans pop' }, el('span', { class: 'qlabel', text: answerNote }), answerText) : null);
+}
+
+function playerRow(n, st, admin, online, cur, t) {
+  const head = el('div', { class: 'phead' },
+    admin ? el('span', { class: 'dot' + (online.has(n) ? ' on' : ''), title: online.has(n) ? 'online' : 'offline' }) : null,
+    el('span', { class: 'pname' }, n, n === S.me && !admin ? el('span', { class: 'muted', text: ' (du)' }) : null),
+    el('span', { class: 'pscore', text: String(st.sc[n]) }));
+  if (!admin) return el('div', { class: 'prow' }, head);
+  return el('div', { class: 'prow' }, head, el('div', { class: 'pact' },
+    cur ? [mini('\u2713 Richtig +' + cur, () => answer(n, true), 'good'), mini('\u2717 Falsch 0', () => answer(n, false), 'bad')] : null,
+    mini('+100', () => adjust(n, 100)), mini('−100', () => adjust(n, -100)),
+    mini('Team wechseln', () => setTeam(n, 1 - t)),
+    online.has(n) ? null : mini('Entfernen', () => removePlayer(n))));
+}
+
+function teamCards(st, admin) {
+  const names = Object.keys(st.sc), tm = st.tm || {}, tn = st.tn || ['Team 1', 'Team 2'];
+  const online = admin ? new Set(S.peers.filter(p => p.presence && p.presence.role === 'player').map(p => clean(p.presence.name))) : null;
+  const total = t => names.filter(n => tm[n] === t).reduce((s, n) => s + st.sc[n], 0);
+  const cur = admin && S.game.cur && !isDone(S.game.cur) ? S.board.values[S.game.cur.r] : 0;
+  const card = t => {
+    const members = names.filter(n => tm[n] === t);
+    const box = el('section', { class: 'team t' + (t + 1) + (total(t) > total(1 - t) ? ' lead' : ''), 'aria-label': String(tn[t]) },
+      el('div', { class: 'thead' }, el('span', { class: 'tname', text: String(tn[t]) }), (st.tu === 1 ? 1 : 0) === t ? el('span', { class: 'tag', text: 'ist dran' }) : null, el('span', { class: 'ttotal', text: String(total(t)) })));
+    if (!members.length) box.append(el('p', { class: 'noplayer', text: 'Noch kein Spieler im Team.' }));
+    members.forEach(n => box.append(playerRow(n, st, admin, online, cur, t)));
+    return box;
+  };
+  return el('div', { class: 'teams' + (admin ? ' side' : '') }, card(0), card(1));
+}
+
+function teamBadge(t, tn) {
+  return (t === 0 || t === 1) ? el('span', { class: 'tbadge t' + (t + 1), text: String(tn[t]) }) : null;
+}
+
+function resultsPanel(st) {
+  const tn = st.tn || ['Team 1', 'Team 2'], tm = st.tm || {}, names = Object.keys(st.sc), h = st.h || [];
+  const total = t => names.filter(n => tm[n] === t).reduce((s, n) => s + st.sc[n], 0);
+  const okOf = x => x.length > 4 ? x[4] === 1 : !!x[3];
+  const right = t => h.filter(x => okOf(x) && tm[x[3]] === t).length;
+  const a = total(0), b = total(1);
+  const headline = a === b ? 'Unentschieden' : (a > b ? tn[0] : tn[1]) + ' gewinnt';
+  const table = el('div', { class: 'tablewrap' }, el('table', { class: 'results' },
+    el('thead', null, el('tr', null, el('th', { text: 'Feld' }), el('th', { text: 'Gewählt von' }), el('th', { text: 'Beantwortet von' }), el('th', { text: 'Ergebnis' }))),
+    el('tbody', null, h.map(x => el('tr', null,
+      el('td', { text: (st.cats[x[0]] ? st.cats[x[0]].n : '?') + ' für ' + x[1] }),
+      el('td', null, teamBadge(x[2], tn)),
+      el('td', null, x[3] ? [x[3] + ' ', teamBadge(tm[x[3]], tn)] : el('span', { class: 'muted', text: '-' })),
+      el('td', { class: okOf(x) ? 'okcell' : 'badcell', text: okOf(x) ? '\u2713 richtig, +' + x[1] : '\u2717 falsch, 0' }))))));
+  return el('div', { class: 'panel stack' },
+    el('h2', { text: 'Ergebnis' }),
+    el('p', { class: 'turnline me', text: headline }),
+    el('p', { class: 'muted', text: tn[0] + ': ' + a + ' Punkte, ' + right(0) + ' richtig. ' + tn[1] + ': ' + b + ' Punkte, ' + right(1) + ' richtig.' }),
+    h.length ? table : el('p', { class: 'muted', text: 'Noch keine Frage gespielt.' }));
+}
+
+function viewPlayer(st = S.pstate, preview = false) {
+  const tnames = st.tn || ['Team 1', 'Team 2'];
+  const turnTeam = st.tu === 1 ? 1 : 0;
+  const mine = !preview && (st.tm || {})[S.me] === turnTeam;
+  const stale = !preview && Date.now() - S.lastState > 14000;
+  const open = st.cats.some(c => c.t.includes(1));
+  let main;
+  if (st.q) {
+    main = qcard(st.q, st.q.a, 'Lösung');
+  } else {
+    const line = !open ? 'Alle Felder sind gespielt. Danke fürs Mitmachen!'
+      : mine ? 'Euer Team ist dran: ' + tnames[turnTeam]
+      : tnames[turnTeam] + ' ist dran.';
+    main = el('div', { class: 'stack' },
+      el('p', { class: 'turnline' + (mine && open ? ' me' : ''), text: line }),
+      boardEl(st, 'view', null),
+      (st.sr || !open) ? resultsPanel(st) : null);
+  }
+  return shell(st.title || 'Quiz-Abend', el('span', { class: 'chip', text: preview ? 'Vorschau' : S.me }),
+    stale ? el('p', { class: 'banner', text: 'Die Verbindung zum Admin ist unterbrochen. Sobald er zurück ist, geht es weiter.' }) : null,
+    el('div', { class: 'stack' }, teamCards(st, false), main));
+}
+
+/* ---------- Admin ---------- */
+function mini(label, fn, cls) { return el('button', { type: 'button', class: 'mini ' + (cls || ''), text: label, onclick: fn }); }
+
+function viewAdminGame() {
+  const st = publicState(false), g = S.game;
+  const codeEl = el('span', { class: 'code', text: S.board.code });
+  const cbtn = el('button', { type: 'button', class: 'mini', text: 'Kopieren' });
+  cbtn.addEventListener('click', () => copyText(S.board.code, cbtn, codeEl));
+  const online = S.peers.filter(p => p.presence && p.presence.role === 'player').length;
+  const bar = el('div', { class: 'panel row' }, el('span', { class: 'muted', text: 'Spielcode' }), codeEl, cbtn,
+    el('span', { class: 'muted', text: online + ' online' }),
+    el('button', { type: 'button', class: 'mini', text: 'Code ändern', onclick: () => { S.tab = 'quiz'; render(); } }),
+    el('button', { type: 'button', class: 'mini', text: g.showResult ? 'Ergebnis verbergen' : 'Ergebnis zeigen', onclick: toggleResult }));
+  let main;
+  if (g.cur) {
+    const x = S.board.cats[g.cur.c].qs[g.cur.r], done = isDone(g.cur);
+    const q = { cat: S.board.cats[g.cur.c].name, p: S.board.values[g.cur.r], t: x.q, d: done ? 1 : 0, w: g.cur.ok || '', ok: g.cur.res === 0 ? 0 : 1 };
+    main = el('div', { class: 'stack' },
+      qcard(q, null, ''),
+      el('div', { class: 'panel stack solution' + (done ? ' shown' : '') },
+        el('span', { class: 'qlabel', text: done ? 'Lösung (alle sehen sie jetzt)' : 'Lösung (nur du siehst sie)' }),
+        el('p', { class: 'solutiontext', text: x.a || '(keine Lösung eingetragen)' }),
+        done ? null : el('p', { class: 'muted', text: 'Drücke rechts bei dem Spieler, der geantwortet hat, Richtig oder Falsch. Danach sehen alle die Lösung und die Punkte werden eingetragen.' })),
+      done ? el('button', { class: 'btn bigbtn', type: 'button', text: 'Weiter zum Brett', onclick: closeQ }) : null);
+  } else {
+    const open = st.cats.some(c => c.t.includes(1));
+    main = el('div', { class: 'stack' },
+      el('p', { class: 'turnline', text: !open ? 'Alle Felder gespielt' : (g.tn[g.turn === 1 ? 1 : 0]) + ' wählt ein Feld' }),
+      boardEl(st, 'admin', (c, r) => openTile(c, r)),
+      (g.showResult || !open) ? resultsPanel(st) : null);
+  }
+  return el('div', { class: 'layout admin' }, el('div', { class: 'stack' }, bar, main), teamCards(st, true));
+}
+
+function parseValues(s) {
+  const v = String(s).split(/[,;\s]+/).map(Number).filter(n => Number.isFinite(n) && n > 0 && n < 100000).map(Math.round);
+  return v.length >= 3 && v.length <= 6 ? v : null;
+}
+function fitRows(d) {
+  d.cats.forEach(c => { while (c.qs.length < d.values.length) c.qs.push({ q: '', a: '' }); c.qs.length = d.values.length; });
+}
+
+function viewEditor() {
+  const d = S.draft;
+  const title = el('input', { id: 'ed-title', value: d.title, maxlength: '40', oninput: e => { d.title = e.target.value; } });
+  const vals = el('input', { id: 'ed-vals', value: d.values.join(', '), onchange: e => {
+    const v = parseValues(e.target.value);
+    if (!v) { setNote('Gib 3 bis 6 Punktwerte an, zum Beispiel 100, 200, 300.'); e.target.value = d.values.join(', '); return; }
+    d.values = v; fitRows(d); render();
+  } });
+  const cats = d.cats.map((c, ci) => el('div', { class: 'panel cated' },
+    el('div', { class: 'row' },
+      el('div', { class: 'field', style: 'flex:1 1 200px' }, el('label', { for: 'cn-' + ci, text: 'Thema ' + (ci + 1) }),
+        el('input', { id: 'cn-' + ci, value: c.name, maxlength: '24', oninput: e => { c.name = e.target.value; } })),
+      d.cats.length > 1 ? el('button', { type: 'button', class: 'btn danger', text: 'Thema löschen', onclick: () => { d.cats.splice(ci, 1); render(); } }) : null),
+    d.values.map((v, r) => el('div', { class: 'qrow' },
+      el('div', { class: 'qpts', text: String(v) }),
+      el('div', { class: 'stack' },
+        el('textarea', { id: 'cq-' + ci + '-' + r, 'aria-label': 'Frage für ' + v + ' Punkte', placeholder: 'Frage (leer lassen, dann bleibt das Feld ausgeblendet)', maxlength: '600', oninput: e => { c.qs[r].q = e.target.value; }, text: c.qs[r].q }),
+        el('input', { id: 'ca-' + ci + '-' + r, 'aria-label': 'Antwort für ' + v + ' Punkte', placeholder: 'Antwort', maxlength: '150', value: c.qs[r].a, oninput: e => { c.qs[r].a = e.target.value; } }))))));
+  const save = async () => {
+    const b = clone(d);
+    b.title = b.title.trim() || 'Quiz-Abend';
+    b.cats.forEach((c, i) => { c.name = c.name.trim() || 'Thema ' + (i + 1); c.qs.forEach(x => { x.q = x.q.trim(); x.a = x.a.trim(); }); });
+    const stored = clone(b); delete stored.code;
+    try {
+      await S.db.doc('quiz/b_' + S.qid).set(stored);
+      S.idx.items.find(x => x.id === S.qid).title = b.title;
+      await persistIndex();
+    } catch (e) { return setNote('Speichern fehlgeschlagen. Versuche es noch einmal.'); }
+    S.board = b; S.draft = clone(b); sanitizeGame();
+    setNote('Fragen gespeichert.');
+    commit();
+    S.tab = 'edit'; render();
+  };
+  return el('div', { class: 'stack' },
+    el('div', { class: 'panel row' },
+      el('div', { class: 'field', style: 'flex:2 1 220px' }, el('label', { for: 'ed-title', text: 'Titel des Abends' }), title),
+      el('div', { class: 'field', style: 'flex:1 1 200px' }, el('label', { for: 'ed-vals', text: 'Punktwerte (3 bis 6)' }), vals)),
+    cats,
+    el('div', { class: 'row' },
+      d.cats.length < 6 ? el('button', { type: 'button', class: 'btn ghost', text: 'Thema hinzufügen', onclick: () => { d.cats.push({ name: '', qs: d.values.map(() => ({ q: '', a: '' })) }); render(); } }) : null,
+      el('button', { type: 'button', class: 'btn', text: 'Speichern', onclick: save })));
+}
+
+function viewQuizzes() {
+  const items = S.idx.items.map(it => {
+    const active = it.id === S.qid;
+    const inp = el('input', { id: 'qc-' + it.id, value: it.code, autocomplete: 'off', spellcheck: 'false' });
+    const err = el('p', { class: 'err', hidden: true, role: 'alert' });
+    const save = async () => {
+      const p = await changeCode(it.id, inp.value);
+      if (p) { err.textContent = p; err.hidden = false; return; }
+      setNote(active ? 'Code gespeichert. Alle Spieler im Quiz wurden abgemeldet.' : 'Code gespeichert.');
+      render();
+    };
+    return el('div', { class: 'panel qitem' + (active ? ' on' : '') },
+      el('div', { class: 'row' }, el('strong', { class: 'qtitle', text: it.title }), active ? el('span', { class: 'tag', text: 'läuft' }) : null),
+      el('div', { class: 'row' },
+        el('div', { class: 'field', style: 'flex:1 1 180px' }, el('label', { for: 'qc-' + it.id, text: 'Spielcode' }), inp),
+        mini('Speichern', save), mini('Zufälliger Code', () => { inp.value = uniqueCode(); })),
+      err,
+      active ? null : el('div', { class: 'row' },
+        el('button', { class: 'btn', type: 'button', text: 'Dieses Quiz starten', onclick: () => switchQuiz(it.id) }),
+        S.confirmDel === it.id
+          ? [el('button', { class: 'btn danger', type: 'button', text: 'Ja, löschen', onclick: () => deleteQuiz(it.id) }),
+             el('button', { class: 'btn ghost', type: 'button', text: 'Abbrechen', onclick: () => { S.confirmDel = ''; render(); } })]
+          : mini('Löschen', () => { S.confirmDel = it.id; render(); })));
+  });
+  return el('div', { class: 'stack' },
+    el('p', { class: 'muted', text: 'Jedes Quiz hat seine eigenen Fragen, Punkte und seinen eigenen Code. Es läuft immer ein Quiz. Wenn du den Code änderst oder ein anderes Quiz startest, werden die Spieler abgemeldet und müssen den Code des Quiz eingeben.' }),
+    items,
+    el('div', { class: 'row' }, el('button', { class: 'btn', type: 'button', text: 'Neues Quiz', onclick: createQuiz })));
+}
+
+function viewSettings() {
+  const a = el('input', { id: 'st-admin', value: S.secret.adminCode, autocomplete: 'off', spellcheck: 'false' });
+  const t0 = el('input', { id: 'st-t1', value: S.game.tn[0], maxlength: '16', autocomplete: 'off' });
+  const t1 = el('input', { id: 'st-t2', value: S.game.tn[1], maxlength: '16', autocomplete: 'off' });
+  const err = el('p', { id: 'err', class: 'err', hidden: true, role: 'alert' });
+  const form = el('form', { class: 'panel stack', onsubmit: async e => {
+    e.preventDefault();
+    const ac = a.value.trim();
+    if (ac.length < 4) return showErr('Der Admin-Code braucht mindestens 4 Zeichen.');
+    if (S.idx.items.some(x => norm(x.code) === norm(ac))) return showErr('Der Admin-Code darf nicht gleich einem Spielcode sein.');
+    try { await S.db.doc('quiz/secret').set({ adminCode: ac }); } catch (x) { return showErr('Speichern fehlgeschlagen.'); }
+    S.secret = { adminCode: ac };
+    S.game.tn = [t0.value.trim().slice(0, 16) || 'Team 1', t1.value.trim().slice(0, 16) || 'Team 2'];
+    commit();
+    showErr('');
+    setNote('Gespeichert.');
+  } },
+  el('h2', { text: 'Admin-Code' }),
+  field('Dein Admin-Code', 'st-admin', a),
+  el('h2', { text: 'Teams in diesem Quiz' }),
+  field('Name von Team 1', 'st-t1', t0),
+  field('Name von Team 2', 'st-t2', t1),
+  err,
+  el('div', { class: 'row' }, el('button', { class: 'btn', type: 'submit', text: 'Speichern' })));
+  const reset = el('div', { class: 'panel stack' }, el('h2', { text: 'Spiel zurücksetzen' }),
+    el('p', { class: 'muted', text: 'Setzt alle Punkte dieses Quiz auf 0 und macht alle Felder wieder frei. Die Fragen bleiben.' }),
+    el('div', { class: 'row' }, S.confirmReset
+      ? [el('button', { class: 'btn danger', type: 'button', text: 'Ja, zurücksetzen', onclick: () => { resetGame(); render(); setNote('Spiel zurückgesetzt.'); } }),
+         el('button', { class: 'btn ghost', type: 'button', text: 'Abbrechen', onclick: () => { S.confirmReset = false; render(); } })]
+      : el('button', { class: 'btn ghost', type: 'button', text: 'Zurücksetzen', onclick: () => { S.confirmReset = true; render(); } })));
+  return el('div', { class: 'stack' }, form, reset,
+    el('p', { class: 'muted small', text: 'Freunde öffnen die Seite über deine Einladung (Teilen, per E-Mail) und geben den Spielcode des laufenden Quiz ein.' }));
+}
+
+function viewAdmin() {
+  if (S.preview) {
+    const page = viewPlayer(publicState(false), true);
+    page.insertBefore(el('div', { class: 'banner row' },
+      el('span', { text: 'Spieleransicht: So sehen deine Spieler die Seite. Du bist ohne Code hier, weil du Admin bist.' }),
+      el('button', { class: 'btn', type: 'button', text: 'Zurück zur Spielleitung', onclick: () => { S.preview = false; render(); } })), page.children[1]);
+    return page;
+  }
+  const tabs = [['game', 'Spiel'], ['quiz', 'Quizze'], ['edit', 'Fragen'], ['set', 'Einstellungen']];
+  const bar = el('div', { class: 'tabs', role: 'tablist' }, tabs.map(([k, label]) => el('button', {
+    type: 'button', class: 'tab', role: 'tab', 'aria-selected': S.tab === k ? 'true' : 'false', text: label,
+    onclick: () => { if (k === 'edit' && S.tab !== 'edit') S.draft = clone(S.board); S.tab = k; S.confirmReset = false; S.confirmDel = ''; render(); }
+  })));
+  const body = S.tab === 'game' ? viewAdminGame() : S.tab === 'quiz' ? viewQuizzes() : S.tab === 'edit' ? viewEditor() : viewSettings();
+  return shell(S.board.title, el('div', { class: 'row' }, el('button', { class: 'mini', type: 'button', text: 'Spieleransicht', onclick: () => { S.preview = true; render(); } }), el('span', { class: 'chip', text: 'Admin' })), bar,
+    S.live ? null : el('p', { class: 'banner', text: 'Keine Live-Verbindung. Du kannst Fragen bearbeiten, aber Freunde können nicht beitreten.' }),
+    body);
+}
+
+/* ---------- Anzeige ---------- */
+function render() {
+  const app = $('#app');
+  const active = document.activeElement && document.activeElement.id;
+  const view = { boot: viewBoot, setup: viewSetup, login: viewLogin, join: viewJoin, player: viewPlayer, admin: viewAdmin }[S.mode];
+  app.replaceChildren(view());
+  if (active) { const n = document.getElementById(active); if (n && n.focus && S.mode !== 'player') n.focus(); }
+}
+
+boot();
+</script>
+
+</body></html>
