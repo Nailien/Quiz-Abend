@@ -1,4 +1,4 @@
-<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Quiz-Abend</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -125,18 +125,66 @@ input:focus-visible,textarea:focus-visible,button:focus-visible{outline:3px soli
 .tbadge.t1{--tc:var(--t1)}.tbadge.t2{--tc:var(--t2)}
 .resbanner{padding:12px 18px;border-radius:12px;font:800 clamp(18px,4vw,26px)/1.25 var(--body);background:rgba(8,4,18,.6);border:2px solid var(--good);color:var(--good);overflow-wrap:anywhere;max-width:100%}
 .resbanner.bad{border-color:var(--bad);color:var(--bad)}
-.okcell{color:var(--good);font-weight:700;white-space:nowrap}.badcell{color:var(--bad);font-weight:700;white-space:nowrap}
+.okcell{color:var(--good);font-weight:700;white-space:normal}.badcell{color:var(--bad);font-weight:700;white-space:normal}
+[hidden]{display:none!important}
+img{max-width:100%}
+input[type=radio]{width:auto;accent-color:var(--accent);flex:none;transform:scale(1.35);margin:0 4px}
+input[type=file]{padding:9px;font-size:14px}
+.qimg{max-width:100%;max-height:46vh;border-radius:12px;object-fit:contain;background:rgba(255,255,255,.08);border:2px solid var(--tile-rim)}
+.ol{flex:none;display:inline-grid;place-items:center;width:34px;height:34px;border-radius:8px;background:var(--accent);color:var(--accent-ink);font:900 20px/1 var(--num)}
+.opts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;width:100%}
+@media (max-width:560px){.opts{grid-template-columns:minmax(0,1fr)}}
+.opt{display:flex;align-items:center;gap:12px;text-align:left;font:700 clamp(16px,3.6vw,22px)/1.25 var(--body);color:#fff;background:rgba(8,4,18,.55);border:2px solid var(--tile-rim);border-radius:12px;padding:12px 14px;min-width:0;overflow-wrap:anywhere;cursor:default}
+.opt:disabled{color:#fff;opacity:1}
+.opt:not(:disabled){cursor:pointer}
+.opt:not(:disabled):hover{filter:brightness(1.25)}
+.opt.picked{border-color:#fff;box-shadow:0 0 0 3px var(--accent)}
+.opt.right{border-color:var(--good);background:rgba(56,224,160,.2)}
+.opt.wrong{border-color:var(--bad);background:rgba(255,138,138,.2)}
+.seg{display:inline-flex;border:2px solid var(--panel-line);border-radius:10px;overflow:hidden;align-self:flex-start}
+.segbtn{font:700 14px var(--body);padding:8px 14px;border:0;background:transparent;color:var(--ink);cursor:pointer}
+.segbtn[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink)}
+.optrow{display:flex;align-items:center;gap:10px}
+.optrow input:not([type=radio]){flex:1;min-width:0}
+.hint{font-size:13px;color:var(--muted)}
+.imgrow{display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap}
+.imgrow .field{flex:1 1 220px}
+.imgprev{max-width:160px;max-height:110px;border-radius:8px;border:2px solid var(--panel-line);object-fit:cover}
+/* Feinschliff Handy */
+.thead{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 10px;align-items:baseline}
+.thead .tname{grid-column:1;grid-row:1}
+.thead .ttotal{grid-column:2;grid-row:1}
+.thead .tag{grid-column:1 / -1;grid-row:2;justify-self:start}
+.cat{font-size:clamp(9px,2.6vw,20px);overflow-wrap:break-word;hyphens:auto;padding-inline:3px}
+@media (max-width:560px){.board{gap:5px;padding:7px}}
+.results th{white-space:normal}
+.results td,.results th{padding:8px 6px}
+.results td .tbadge{display:inline-block;margin-top:4px}
+.cellname{display:block;overflow-wrap:break-word;hyphens:auto}
+input[type=file]::file-selector-button{font:700 13px var(--body);padding:6px 12px;border-radius:8px;border:0;background:var(--accent);color:var(--accent-ink);margin-right:10px;cursor:pointer}
 </style>
-<div id="app"></div>
+</head><body><div id="app"></div>
+<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<script>window.Peer||document.write('<script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js"><\/script>')</script>
 <script>
 'use strict';
-const LS = 'quizabend.v1';
-const store = {
-  get() { try { return JSON.parse(localStorage.getItem(LS)) || {}; } catch (e) { return {}; } },
-  set(v) { try { localStorage.setItem(LS, JSON.stringify(v)); } catch (e) { /* ignorieren */ } }
+const ADMIN_SALT = 'quizabend-v1', ADMIN_ITER = 150000, ADMIN_HASH = '89859126277ce566f955ae22deb124b9ce10ed90b2193463abf5cf51423c4741';
+const PEER_PREFIX = 'qabend-nw-';
+const LSKEY = 'quizabend.sa.v1', SSKEY = 'quizabend.sa.admin', NAMEKEY = 'quizabend.sa.name';
+const LETTERS = 'ABCD';
+
+const lsx = {
+  get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
+  set(k, v) { try { localStorage.setItem(k, v); return true; } catch (e) { return false; } }
 };
-const use = n => (window.claude && window.claude.use) ? window.claude.use(n) : Promise.resolve(null);
+const ssx = {
+  get(k) { try { return sessionStorage.getItem(k); } catch (e) { return null; } },
+  set(k, v) { try { sessionStorage.setItem(k, v); } catch (e) { /* ignorieren */ } },
+  del(k) { try { sessionStorage.removeItem(k); } catch (e) { /* ignorieren */ } }
+};
 const $ = s => document.querySelector(s);
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const clone = o => JSON.parse(JSON.stringify(o));
 
 function el(tag, props, ...kids) {
   const e = document.createElement(tag);
@@ -145,6 +193,8 @@ function el(tag, props, ...kids) {
     if (v == null || v === false) continue;
     if (k === 'class') e.className = v;
     else if (k === 'text') e.textContent = v;
+    else if (k === 'value') e.value = v;
+    else if (k === 'checked') e.checked = !!v;
     else if (k.startsWith('on')) e.addEventListener(k.slice(2), v);
     else if (v === true) e.setAttribute(k, '');
     else e.setAttribute(k, v);
@@ -157,63 +207,127 @@ function el(tag, props, ...kids) {
 }
 
 const clean = n => String(n == null ? '' : n).replace(/[\p{C}]/gu, '').trim().slice(0, 16);
-const norm = c => String(c || '').trim().toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9_.-]/g, '').replace(/^[^a-z0-9]+/, '').slice(0, 48);
+const norm = c => String(c || '').trim().toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9_-]/g, '').replace(/^[^a-z0-9]+/, '').replace(/[^a-z0-9]+$/, '').slice(0, 48);
 const ALPHA = 'abcdefghjkmnpqrstuvwxyz23456789';
 function rand(n) {
   const a = new Uint32Array(n);
   crypto.getRandomValues(a);
   return Array.from(a, x => ALPHA[x % ALPHA.length]).join('');
 }
-const clone = o => JSON.parse(JSON.stringify(o));
+const peerId = code => PEER_PREFIX + norm(code);
 
+async function isAdminCode(code) {
+  if (!window.crypto || !crypto.subtle) return null;
+  const enc = new TextEncoder();
+  const key = await crypto.subtle.importKey('raw', enc.encode(String(code).trim()), 'PBKDF2', false, ['deriveBits']);
+  const bits = await crypto.subtle.deriveBits({ name: 'PBKDF2', salt: enc.encode(ADMIN_SALT), iterations: ADMIN_ITER, hash: 'SHA-256' }, key, 256);
+  const hex = Array.from(new Uint8Array(bits), b => b.toString(16).padStart(2, '0')).join('');
+  return hex === ADMIN_HASH;
+}
+
+/* ---------- Fragen ---------- */
+const tq = (q, a) => ({ q, a, type: 'text', opts: ['', '', '', ''], ok: 0, img: '', iv: 0 });
+const mq = (q, opts, ok) => ({ q, a: '', type: 'mc', opts, ok, img: '', iv: 0 });
 function defaultBoard() {
-  const q = (q, a) => ({ q, a });
   return {
     title: 'Quiz-Abend',
     values: [100, 200, 300, 400, 500],
     cats: [
       { name: 'Allgemeinwissen', qs: [
-        q('Wie viele Kontinente gibt es?', '7'),
-        q('Welcher Planet ist der Sonne am nächsten?', 'Merkur'),
-        q('Wie heisst die Hauptstadt von Australien?', 'Canberra'),
-        q('Welches chemische Symbol hat Gold?', 'Au'),
-        q('In welchem Jahr fiel die Berliner Mauer?', '1989')] },
+        tq('Wie viele Kontinente gibt es?', '7'),
+        tq('Welcher Planet ist der Sonne am nächsten?', 'Merkur'),
+        mq('Wie heisst die Hauptstadt von Australien?', ['Sydney', 'Canberra', 'Melbourne', 'Perth'], 1),
+        tq('Welches chemische Symbol hat Gold?', 'Au'),
+        tq('In welchem Jahr fiel die Berliner Mauer?', '1989')] },
       { name: 'Schweiz', qs: [
-        q('Wie heisst die Hauptstadt der Schweiz?', 'Bern'),
-        q('Wie viele Kantone hat die Schweiz?', '26'),
-        q('Wie heisst der höchste Berg, der ganz in der Schweiz liegt?', 'Dufourspitze'),
-        q('Welcher Fluss fliesst durch die Stadt Zürich?', 'Die Limmat'),
-        q('Welche ist die vierte Landessprache neben Deutsch, Französisch und Italienisch?', 'Rätoromanisch')] },
+        tq('Wie heisst die Hauptstadt der Schweiz?', 'Bern'),
+        tq('Wie viele Kantone hat die Schweiz?', '26'),
+        tq('Wie heisst der höchste Berg, der ganz in der Schweiz liegt?', 'Dufourspitze'),
+        tq('Welcher Fluss fliesst durch die Stadt Zürich?', 'Die Limmat'),
+        tq('Welche ist die vierte Landessprache neben Deutsch, Französisch und Italienisch?', 'Rätoromanisch')] },
       { name: 'Gaming', qs: [
-        q('Wie heisst der Klempner mit der roten Mütze aus den Nintendo-Spielen?', 'Mario'),
-        q('Welches Spiel aus Blöcken wurde von Mojang entwickelt?', 'Minecraft'),
-        q('Welches Battle-Royale-Spiel von Epic Games hat einen Bus, der über die Insel fliegt?', 'Fortnite'),
-        q('Wie heisst die Hauptfigur der Zelda-Reihe?', 'Link'),
-        q('Welche Firma hat die PlayStation entwickelt?', 'Sony')] }
+        mq('Wie heisst der Klempner mit der roten Mütze aus den Nintendo-Spielen?', ['Mario', 'Luigi', 'Wario', 'Yoshi'], 0),
+        tq('Welches Spiel aus Blöcken wurde von Mojang entwickelt?', 'Minecraft'),
+        tq('Welches Battle-Royale-Spiel von Epic Games hat einen Bus, der über die Insel fliegt?', 'Fortnite'),
+        tq('Wie heisst die Hauptfigur der Zelda-Reihe?', 'Link'),
+        tq('Welche Firma hat die PlayStation entwickelt?', 'Sony')] }
     ]
   };
 }
 function blankBoard() {
-  const cat = n => ({ name: n, qs: [1, 2, 3, 4, 5].map(() => ({ q: '', a: '' })) });
+  const cat = n => ({ name: n, qs: [1, 2, 3, 4, 5].map(() => tq('', '')) });
   return { title: 'Neues Quiz', values: [100, 200, 300, 400, 500], cats: [cat('Thema 1'), cat('Thema 2'), cat('Thema 3')] };
 }
-const emptyGame = () => ({ used: {}, scores: {}, chooser: '', cur: null, lastCorrect: '', team: {}, tn: ['Team 1', 'Team 2'], turn: 0, hist: [], showResult: false });
+function normBoard(b) {
+  b.values = Array.isArray(b.values) && b.values.length ? b.values.map(Number) : [100, 200, 300, 400, 500];
+  b.cats = Array.isArray(b.cats) ? b.cats : [];
+  b.cats.forEach(c => {
+    c.name = String(c.name || '');
+    c.qs = Array.isArray(c.qs) ? c.qs : [];
+    while (c.qs.length < b.values.length) c.qs.push(tq('', ''));
+    c.qs.length = b.values.length;
+    c.qs = c.qs.map(x => {
+      x = x || {};
+      return { q: String(x.q || ''), a: String(x.a || ''), type: x.type === 'mc' ? 'mc' : 'text',
+        opts: Array.isArray(x.opts) ? x.opts.map(String) : [], ok: Number.isInteger(x.ok) ? x.ok : 0,
+        img: typeof x.img === 'string' && x.img.startsWith('data:image/') ? x.img : '', iv: Number(x.iv) || 0 };
+    });
+  });
+  return b;
+}
+const emptyGame = () => ({ used: {}, scores: {}, cur: null, team: {}, tn: ['Team 1', 'Team 2'], turn: 0, hist: [], showResult: false });
+const hasContent = x => !!(x && (String(x.q || '').trim() || x.img));
+const isMC = x => !!(x && x.type === 'mc' && Array.isArray(x.opts) && x.opts.filter(Boolean).length >= 2 && x.ok >= 0 && x.ok < x.opts.length);
 
+/* ---------- Speicher im Browser ---------- */
+function freshDB() {
+  return { items: [{ id: 'q1', title: 'Quiz-Abend', code: 'quiz-' + rand(4) }], active: 'q1', boards: { q1: defaultBoard() }, games: { q1: emptyGame() } };
+}
+function fixDB(d) {
+  if (!d || !Array.isArray(d.items) || !d.items.length) return null;
+  d.boards = d.boards || {}; d.games = d.games || {};
+  d.items = d.items.filter(it => it && it.id && it.code);
+  if (!d.items.length) return null;
+  d.items.forEach(it => {
+    d.boards[it.id] = normBoard(d.boards[it.id] || blankBoard());
+    d.games[it.id] = Object.assign(emptyGame(), d.games[it.id] || {});
+    const g = d.games[it.id];
+    if (!g.team || typeof g.team !== 'object') g.team = {};
+    if (!Array.isArray(g.tn) || g.tn.length !== 2) g.tn = ['Team 1', 'Team 2'];
+    if (!Array.isArray(g.hist)) g.hist = [];
+    if (!g.scores || typeof g.scores !== 'object') g.scores = {};
+    if (!g.used || typeof g.used !== 'object') g.used = {};
+  });
+  if (!d.items.some(it => it.id === d.active)) d.active = d.items[0].id;
+  return d;
+}
+let DB = (() => { try { const d = fixDB(JSON.parse(lsx.get(LSKEY))); if (d) return d; } catch (e) { /* neu */ } return freshDB(); })();
+const cq = () => DB.items.find(i => i.id === DB.active);
+const board = () => DB.boards[DB.active];
+const game = () => DB.games[DB.active];
+
+let saveT = null;
+function flush() {
+  clearTimeout(saveT);
+  if (!lsx.set(LSKEY, JSON.stringify(DB))) setNote('Speichern im Browser fehlgeschlagen. Der Speicher ist voll. Entferne Bilder oder exportiere eine Sicherung.');
+}
+function persist() { clearTimeout(saveT); saveT = setTimeout(flush, 250); }
+window.addEventListener('pagehide', () => { if (saveT) flush(); });
+
+/* ---------- Zustand der Seite ---------- */
 const S = {
-  mode: 'boot', isOwner: false, db: null, room: null, nr: null, secret: null,
-  board: null, game: emptyGame(), tab: 'game', draft: null, peers: [],
-  pstate: null, me: '', lastState: 0, seq: 0, confirmReset: false, live: true
+  mode: 'login', tab: 'game', draft: null, preview: false,
+  peer: null, conns: new Map(), live: 'off', netErr: '', hb: null,
+  conn: null, pstate: null, imgs: {}, me: '', joinCode: '', lastState: 0, lastJson: '', stale: false, rt: null, joinT: null, staleT: null,
+  confirmReset: false, confirmDel: '', busy: false, importData: null
 };
-const handled = new Set();
-let baseline = false;
-let hb = null, joinTimer = null, staleTimer = null, noteTimer = null;
-
+let noteTimer = null;
 function setNote(msg) {
   const n = $('#note');
   if (!n) return;
   n.textContent = msg || '';
   clearTimeout(noteTimer);
-  if (msg) noteTimer = setTimeout(() => { const m = $('#note'); if (m) m.textContent = ''; }, 3500);
+  if (msg) noteTimer = setTimeout(() => { const m = $('#note'); if (m) m.textContent = ''; }, 4500);
 }
 function showErr(msg) {
   const n = $('#err');
@@ -222,362 +336,292 @@ function showErr(msg) {
   n.hidden = !msg;
 }
 
-/* ---------- Spielzustand (Admin) ---------- */
+/* ---------- Spiellogik (läuft nur beim Admin) ---------- */
+const isDone = cur => !!(cur && cur.done);
+const imgKey = (c, r) => { const x = board().cats[c].qs[r]; return c + '-' + r + '-' + (x.iv || 0); };
+
 function sanitizeGame() {
-  const b = S.board, g = S.game;
+  const b = board(), g = game();
   for (const k of Object.keys(g.used)) {
     const [c, r] = k.split('-').map(Number);
     if (!b.cats[c] || r >= b.values.length) delete g.used[k];
   }
-  if (g.cur && (!b.cats[g.cur.c] || !b.cats[g.cur.c].qs[g.cur.r] || !b.cats[g.cur.c].qs[g.cur.r].q.trim())) g.cur = null;
+  if (g.cur && !(b.cats[g.cur.c] && hasContent(b.cats[g.cur.c].qs[g.cur.r]))) g.cur = null;
   for (const n of Object.keys(g.scores)) if (typeof g.scores[n] !== 'number') g.scores[n] = 0;
 }
 
-function publicState(inc) {
-  const b = S.board, g = S.game;
+function publicState() {
+  const b = board(), g = game();
   const cats = b.cats.map((c, ci) => ({
     n: c.name,
-    t: b.values.map((v, ri) => {
-      const x = c.qs[ri];
-      if (!x || !x.q.trim()) return 0;
-      return g.used[ci + '-' + ri] ? 2 : 1;
-    })
+    t: b.values.map((v, ri) => hasContent(c.qs[ri]) ? (g.used[ci + '-' + ri] ? 2 : 1) : 0)
   }));
   let q = null;
   if (g.cur) {
     const c = b.cats[g.cur.c], x = c && c.qs[g.cur.r];
-    if (x) q = { c: g.cur.c, r: g.cur.r, p: b.values[g.cur.r], d: isDone(g.cur) ? 1 : 0, w: g.cur.ok || '', ok: g.cur.res === 0 ? 0 : 1, cat: c.name, t: x.q.slice(0, 500), a: g.cur.revealed ? x.a.slice(0, 200) : null };
+    if (x) {
+      const done = isDone(g.cur), mc = isMC(x);
+      q = { c: g.cur.c, r: g.cur.r, p: b.values[g.cur.r], cat: c.name, t: String(x.q).slice(0, 500),
+        im: x.img ? imgKey(g.cur.c, g.cur.r) : '', ty: mc ? 'mc' : 'text', o: mc ? x.opts.slice(0, 4) : null,
+        pk: mc && g.cur.pick >= 0 ? g.cur.pick : -1, d: done ? 1 : 0, w: g.cur.ok || '', ok: g.cur.res === 0 ? 0 : 1,
+        a: done && !mc ? String(x.a).slice(0, 200) : null, ca: done && mc ? x.ok : -1 };
+    }
   }
-  return { title: b.title, vals: b.values, cats, q, ch: g.chooser, tu: g.turn === 1 ? 1 : 0, h: q ? [] : g.hist.slice(-30), sr: !!g.showResult, sc: g.scores, tm: g.team, tn: g.tn, seq: inc ? ++S.seq : S.seq };
+  return { title: b.title, vals: b.values, cats, q, tu: g.turn === 1 ? 1 : 0, h: q ? [] : g.hist.slice(-40),
+    sr: !!g.showResult, sc: g.scores, tm: g.team, tn: g.tn };
 }
-
-function broadcast() {
-  if (!S.nr || S.mode !== 'admin') return;
-  const st = publicState(true);
-  S.nr.emit('state', st).catch(e => {
-    if (!S.emitWarned) { S.emitWarned = true; setNote('Senden an die Spieler fehlgeschlagen (' + ((e && e.code) || 'Fehler') + ').'); }
-  });
-  /* Zweiter Weg: derselbe Stand in der Anwesenheit des Admins, damit auch Neue ihn sofort bekommen */
-  let s = st;
-  try { if (new Blob([JSON.stringify(st)]).size > 3600) s = null; } catch (e) { s = null; }
-  S.nr.presence({ role: 'admin', s }).catch(() => {});
-}
-
-let saveT = null, saving = Promise.resolve();
-function saveGame() {
-  clearTimeout(saveT);
-  saveT = setTimeout(() => {
-    const snap = clone(S.game);
-    saving = saving.then(() => S.db.doc('quiz/g_' + S.qid).set(snap)).catch(() => setNote('Spielstand konnte nicht gespeichert werden.'));
-  }, 400);
+function curImg() {
+  const g = game();
+  if (!g.cur) return null;
+  const x = board().cats[g.cur.c] && board().cats[g.cur.c].qs[g.cur.r];
+  return x && x.img ? { k: imgKey(g.cur.c, g.cur.r), d: x.img } : null;
 }
 
 function liveView() { return S.mode === 'admin' && (S.tab === 'game' || S.preview); }
-
 function commit() {
-  saveGame();
+  persist();
   broadcast();
   if (liveView()) render();
 }
 
-/* Reihenfolge abwechselnd: Team 1, Team 2, Team 1, Team 2 */
-function order() {
-  const g = S.game, names = Object.keys(g.scores);
-  const t0 = names.filter(n => g.team[n] === 0), t1 = names.filter(n => g.team[n] === 1);
-  const rest = names.filter(n => g.team[n] !== 0 && g.team[n] !== 1);
-  const out = [];
-  for (let i = 0; i < Math.max(t0.length, t1.length); i++) { if (t0[i]) out.push(t0[i]); if (t1[i]) out.push(t1[i]); }
-  return out.concat(rest);
-}
-function nextOf(n) {
-  const k = order();
-  if (!k.length) return '';
-  return k[(k.indexOf(n) + 1) % k.length];
-}
-function toggleResult() { S.game.showResult = !S.game.showResult; commit(); }
-function setTurn(t) { S.game.turn = t; commit(); }
-function setTeam(name, t) { S.game.team[name] = t; commit(); }
 function openTile(c, r) {
-  const g = S.game;
+  const g = game();
   if (g.cur || g.used[c + '-' + r]) return;
-  const x = S.board.cats[c] && S.board.cats[c].qs[r];
-  if (!x || !x.q.trim()) return;
-  g.cur = { c, r, revealed: false, team: g.turn === 1 ? 1 : 0, ok: '' };
+  const x = board().cats[c] && board().cats[c].qs[r];
+  if (!hasContent(x)) return;
+  g.cur = { c, r, team: g.turn === 1 ? 1 : 0, pick: -1, ok: '', res: -1, done: false };
   commit();
 }
-function reveal() { if (S.game.cur) { S.game.cur.revealed = true; commit(); } }
-function isDone(cur) { return !!(cur && (cur.done || cur.revealed)); }
-function answer(name, correct) {
-  const g = S.game;
+function setPick(i) {
+  const g = game();
   if (!g.cur || isDone(g.cur)) return;
-  const p = S.board.values[g.cur.r];
-  if (correct) g.scores[name] = (g.scores[name] || 0) + p;
-  g.cur.done = true; g.cur.revealed = true; g.cur.ok = name; g.cur.res = correct ? 1 : 0;
-  g.hist.push([g.cur.c, p, g.cur.team === 1 ? 1 : (g.cur.team === 0 ? 0 : (g.turn === 1 ? 1 : 0)), name, correct ? 1 : 0]);
+  g.cur.pick = g.cur.pick === i ? -1 : i;
   commit();
 }
-function adjust(name, d) { S.game.scores[name] = (S.game.scores[name] || 0) + d; commit(); }
-function setChooser(name) { S.game.chooser = name; commit(); }
+function answer(name, correct) {
+  const g = game();
+  if (!g.cur || isDone(g.cur)) return;
+  const p = board().values[g.cur.r];
+  if (correct) g.scores[name] = (g.scores[name] || 0) + p;
+  g.cur.done = true; g.cur.ok = name; g.cur.res = correct ? 1 : 0;
+  g.hist.push([g.cur.c, p, g.cur.team, name, correct ? 1 : 0]);
+  commit();
+}
 function closeQ() {
-  const g = S.game;
+  const g = game();
   if (!g.cur || !isDone(g.cur)) return;
   g.used[g.cur.c + '-' + g.cur.r] = true;
   g.cur = null;
   g.turn = g.turn === 1 ? 0 : 1;
-  g.lastCorrect = '';
   commit();
 }
-function removePlayer(name) {
-  const g = S.game;
-  if (g.chooser === name) g.chooser = nextOf(name) === name ? '' : nextOf(name);
-  delete g.scores[name];
-  delete g.team[name];
-  commit();
-}
+function adjust(name, d) { game().scores[name] = (game().scores[name] || 0) + d; commit(); }
+function setTeam(name, t) { game().team[name] = t; commit(); }
+function removePlayer(name) { delete game().scores[name]; delete game().team[name]; commit(); }
+function toggleResult() { game().showResult = !game().showResult; commit(); }
 function resetGame() {
-  const g = S.game;
+  const g = game();
   for (const n of Object.keys(g.scores)) g.scores[n] = 0;
-  g.used = {}; g.cur = null; g.lastCorrect = '';
-  g.chooser = order()[0] || '';
-  g.turn = 0; g.hist = []; g.showResult = false;
+  g.used = {}; g.cur = null; g.hist = []; g.showResult = false; g.turn = 0;
   S.confirmReset = false;
   commit();
 }
+function onlineSet() {
+  const s = new Set();
+  S.conns.forEach(c => { if (c._name && c.open) s.add(c._name); });
+  return s;
+}
+/* ---------- Live-Verbindung (PeerJS, direkt zwischen den Browsern) ---------- */
+function stopNet(notify) {
+  clearInterval(S.hb); S.hb = null;
+  clearTimeout(S.rt); clearTimeout(S.joinT); clearInterval(S.staleT);
+  const p = S.peer;
+  S.peer = null; S.conn = null;
+  if (notify) S.conns.forEach(c => { try { c.send({ t: 'closed' }); } catch (e) { /* ignorieren */ } });
+  S.conns = new Map();
+  S.live = 'off';
+  if (p) setTimeout(() => { try { p.destroy(); } catch (e) { /* ignorieren */ } }, notify ? 500 : 0);
+}
 
-function onAdminPeers(ch) {
-  S.peers = ch.peers;
+async function startHost(delay, attempt) {
+  attempt = attempt || 0;
+  if (delay) await sleep(delay);
+  if (S.mode !== 'admin' || S.peer) return;
+  if (typeof Peer === 'undefined') { S.live = 'off'; S.netErr = 'lib'; refreshAdmin(); return; }
+  const code = cq().code;
+  S.live = 'connecting'; S.netErr = '';
+  let p;
+  try { p = new Peer(peerId(code), { debug: 0 }); } catch (e) { S.live = 'off'; S.netErr = 'init'; refreshAdmin(); return; }
+  S.peer = p;
+  refreshAdmin();
+  p.on('open', () => { if (S.peer !== p) return; S.live = 'on'; S.netErr = ''; refreshAdmin(); broadcast(); });
+  p.on('connection', conn => { if (S.peer !== p) { try { conn.close(); } catch (e) { /* ignorieren */ } return; } onConn(conn); });
+  p.on('disconnected', () => {
+    if (S.peer !== p || p.destroyed) return;
+    S.live = 'connecting'; refreshAdmin();
+    setTimeout(() => { try { if (S.peer === p && !p.destroyed) p.reconnect(); } catch (e) { /* ignorieren */ } }, 1500);
+  });
+  p.on('error', e => {
+    if (S.peer !== p) return;
+    const t = (e && e.type) || 'error';
+    if (t === 'unavailable-id' && attempt < 5) {
+      /* Nach einem Neuladen braucht der Vermittlungsserver kurz, bis der alte Eintrag weg ist */
+      S.peer = null; try { p.destroy(); } catch (x) { /* ignorieren */ }
+      S.live = 'connecting'; refreshAdmin();
+      startHost(2000, attempt + 1);
+      return;
+    }
+    S.netErr = t;
+    S.live = p.destroyed ? 'off' : (p.disconnected ? 'connecting' : (p.open ? 'on' : 'off'));
+    refreshAdmin();
+  });
+  clearInterval(S.hb); S.hb = setInterval(broadcast, 4000);
+}
+
+function onConn(conn) {
+  conn.on('data', m => { if (m && typeof m === 'object' && m.t === 'hello') onHello(conn, m); });
+  conn.on('close', () => { if (S.conns.get(conn.peer) === conn) { S.conns.delete(conn.peer); refreshAdmin(); } });
+  conn.on('error', () => { /* ignorieren */ });
+}
+
+function onHello(conn, m) {
+  let name = clean(m.name);
+  if (!name) { try { conn.send({ t: 'denied', why: 'Bitte gib einen Namen ein.' }); } catch (e) { /* ignorieren */ } return; }
+  if (name.startsWith('__')) name = '_' + name.slice(2);
+  S.conns.forEach((c, id) => {
+    if (c !== conn && c._name === name) {
+      try { c.send({ t: 'denied', why: 'Du bist mit diesem Namen auf einem anderen Gerät beigetreten.' }); } catch (e) { /* ignorieren */ }
+      try { c.close(); } catch (e) { /* ignorieren */ }
+      S.conns.delete(id);
+    }
+  });
+  const prev = S.conns.get(conn.peer);
+  if (prev && prev !== conn) { try { prev.close(); } catch (e) { /* ignorieren */ } }
+  conn._name = name; conn._img = '';
+  S.conns.set(conn.peer, conn);
+  const g = game(), has = k => Object.prototype.hasOwnProperty.call(g.scores, k);
   let changed = false;
-  for (const p of ch.peers) {
-    const pr = p.presence || {};
-    if (pr.role !== 'player') continue;
-    const name = clean(pr.name);
-    if (!name) continue;
-    if (!(name in S.game.scores)) { S.game.scores[name] = 0; changed = true; }
-    if (S.game.team[name] !== 0 && S.game.team[name] !== 1) {
-      const vals = Object.keys(S.game.scores).filter(n => n !== name).map(n => S.game.team[n]);
-      S.game.team[name] = vals.filter(v => v === 0).length <= vals.filter(v => v === 1).length ? 0 : 1;
-      changed = true;
-    }
-    if (!S.game.chooser) { S.game.chooser = name; changed = true; }
+  if (!has(name)) { g.scores[name] = 0; changed = true; }
+  if (g.team[name] !== 0 && g.team[name] !== 1) {
+    const vals = Object.keys(g.scores).filter(n => n !== name).map(n => g.team[n]);
+    g.team[name] = vals.filter(v => v === 0).length <= vals.filter(v => v === 1).length ? 0 : 1;
+    changed = true;
   }
-  if (changed) commit();
-  else if (ch.joined.length) { setTimeout(broadcast, 300); if (liveView()) render(); }
-  else if (liveView()) render();
+  if (changed) commit(); else { broadcast(); refreshAdmin(); }
 }
 
-async function joinAdminRoom() {
-  await closeRoom(false);
-  if (!S.room) { S.live = false; return; }
-  baseline = false; handled.clear();
-  try {
-    S.nr = await S.room.join(norm(S.board.code));
-    S.nr.onPeers(onAdminPeers);
-    await S.nr.presence({ role: 'admin' });
-    S.live = true;
-    hb = setInterval(broadcast, 4000);
-    setTimeout(() => { baseline = true; }, 1500);
-    broadcast();
-  } catch (e) { S.live = false; }
-}
-
-/* ---------- Start und Anmeldung ---------- */
-async function boot() {
-  render();
-  const [user, db, room] = await Promise.all([use('user'), use('db'), use('room')]);
-  S.db = db; S.room = room;
-  S.isOwner = user ? await user.isOwner() : false;
-  if (S.isOwner && db) {
+function broadcast() {
+  if (S.mode !== 'admin' || !S.conns.size) return;
+  const st = publicState(), im = curImg();
+  S.conns.forEach(c => {
+    if (!c.open) return;
     try {
-      const snap = await db.doc('quiz/secret').get();
-      S.secret = snap.exists ? clone(snap.data()) : null;
-    } catch (e) { S.secret = null; }
-    S.mode = S.secret ? 'login' : 'setup';
-  } else {
-    S.mode = 'login';
+      if (im && c._img !== im.k) { c.send({ t: 'img', k: im.k, d: im.d }); c._img = im.k; }
+      c.send({ t: 'state', d: st });
+    } catch (e) { /* ignorieren */ }
+  });
+}
+
+/* ---------- Spieler ---------- */
+function joinGame(code, name) {
+  stopNet(false);
+  S.mode = 'join'; S.me = name; S.joinCode = code; S.joinTries = 0; S.pstate = null; S.lastJson = ''; S.stale = false; S.imgs = {};
+  render();
+  if (typeof Peer === 'undefined') return backToLogin('Die Live-Bibliothek konnte nicht geladen werden. Prüfe deine Internetverbindung und lade die Seite neu.');
+  startPlayerPeer();
+  S.joinT = setTimeout(() => {
+    if (S.mode !== 'join') return;
+    backToLogin(S.peer && S.peer.open
+      ? 'Der Admin hat nicht geantwortet. Prüfe den Code und ob dein Admin die Seite geöffnet hat.'
+      : 'Keine Verbindung zum Vermittlungsserver. Prüfe dein Internet und versuche es noch einmal.');
+  }, 15000);
+  S.staleT = setInterval(() => {
+    if (S.mode !== 'player') return;
+    const st = Date.now() - S.lastState > 14000;
+    if (st !== S.stale) { S.stale = st; render(); }
+  }, 3000);
+}
+
+function startPlayerPeer() {
+  let p;
+  try { p = new Peer({ debug: 0 }); } catch (e) { return backToLogin('Die Live-Verbindung konnte nicht gestartet werden.'); }
+  S.peer = p;
+  p.on('open', () => { if (S.peer === p) connectToHost(); });
+  p.on('error', e => {
+    if (S.peer !== p) return;
+    const t = (e && e.type) || 'error';
+    if (S.mode === 'join') {
+      if (t === 'peer-unavailable') {
+        /* Der Admin lädt vielleicht gerade neu oder hat den Code eben erst geändert: ein paar Mal nachfragen */
+        if ((S.joinTries = (S.joinTries || 0) + 1) <= 3) { setTimeout(() => { if (S.mode === 'join' && S.peer === p) connectToHost(); }, 1500); return; }
+        backToLogin('Kein laufendes Spiel mit diesem Code. Prüfe den Code (nicht den Admin-Code) und ob dein Admin die Seite geöffnet hat.');
+      } else backToLogin('Keine Verbindung zum Vermittlungsserver (' + t + '). Versuche es noch einmal.');
+    } else if (S.mode === 'player') { S.stale = true; render(); playerReconnect(); }
+  });
+  p.on('disconnected', () => {
+    if (S.peer === p && !p.destroyed && (S.mode === 'player' || S.mode === 'join')) { try { p.reconnect(); } catch (e) { /* ignorieren */ } }
+  });
+}
+
+function connectToHost() {
+  const p = S.peer;
+  if (!p || p.destroyed) return;
+  if (S.conn) { try { S.conn.close(); } catch (e) { /* ignorieren */ } }
+  const c = p.connect(peerId(S.joinCode), { reliable: true });
+  S.conn = c;
+  c.on('open', () => { if (S.conn === c) c.send({ t: 'hello', name: S.me }); });
+  c.on('data', m => { if (S.conn === c) onHostMsg(m); });
+  c.on('close', () => { if (S.conn === c && S.mode === 'player') { S.stale = true; render(); playerReconnect(); } });
+  c.on('error', () => { /* ignorieren */ });
+}
+
+function playerReconnect() {
+  clearTimeout(S.rt);
+  S.rt = setTimeout(() => {
+    if (S.mode !== 'player') return;
+    const p = S.peer;
+    if (!p || p.destroyed) startPlayerPeer();
+    else { if (p.disconnected) { try { p.reconnect(); } catch (e) { /* ignorieren */ } } connectToHost(); }
+    playerReconnect();
+  }, 3000);
+}
+
+function onHostMsg(m) {
+  if (!m || typeof m !== 'object') return;
+  if (m.t === 'closed') return backToLogin('Das Quiz wurde beendet oder der Code wurde geändert. Gib den neuen Code ein.');
+  if (m.t === 'denied') return backToLogin(String(m.why || 'Beitritt abgelehnt.'));
+  if (m.t === 'img' && typeof m.k === 'string' && typeof m.d === 'string' && m.d.startsWith('data:image/')) {
+    S.imgs[m.k] = m.d;
+    if (S.mode === 'player') render();
+    return;
   }
-  render();
-}
-
-async function loadIndex() {
-  const idx = await S.db.doc('quiz/index').get();
-  if (idx.exists) { S.idx = clone(idx.data()); }
-  else {
-    /* Erste Nutzung oder Umstieg von der alten Version: ein Quiz anlegen */
-    const [b, g] = await Promise.all([S.db.doc('quiz/board').get(), S.db.doc('quiz/game').get()]);
-    const board = b.exists ? clone(b.data()) : defaultBoard();
-    const game = Object.assign(emptyGame(), g.exists ? clone(g.data()) : {});
-    const code = S.firstCode || (S.secret && S.secret.gameCode) || ('quiz-' + rand(4));
-    S.idx = { items: [{ id: 'q1', title: board.title, code }], active: 'q1' };
-    await S.db.doc('quiz/b_q1').set(board);
-    await S.db.doc('quiz/g_q1').set(game);
-    await S.db.doc('quiz/index').set(S.idx);
-  }
-  if (!S.idx.items.some(x => x.id === S.idx.active)) S.idx.active = S.idx.items[0].id;
-}
-
-async function loadQuiz(id) {
-  const [b, g] = await Promise.all([S.db.doc('quiz/b_' + id).get(), S.db.doc('quiz/g_' + id).get()]);
-  S.qid = id;
-  S.board = b.exists ? clone(b.data()) : blankBoard();
-  S.board.code = S.idx.items.find(x => x.id === id).code;
-  S.game = Object.assign(emptyGame(), g.exists ? clone(g.data()) : {});
-  if (!S.game.team || typeof S.game.team !== 'object') S.game.team = {};
-  if (!Array.isArray(S.game.tn) || S.game.tn.length !== 2) S.game.tn = ['Team 1', 'Team 2'];
-  if (!Array.isArray(S.game.hist)) S.game.hist = [];
-  sanitizeGame();
-}
-
-async function enterAdmin() {
-  try { await loadIndex(); await loadQuiz(S.idx.active); }
-  catch (e) {
-    S.idx = { items: [{ id: 'q1', title: 'Quiz-Abend', code: 'quiz-' + rand(4) }], active: 'q1' };
-    S.qid = 'q1'; S.board = defaultBoard(); S.board.code = S.idx.items[0].code; S.game = emptyGame();
-    setTimeout(() => setNote('Gespeicherte Daten konnten nicht geladen werden.'), 200);
-  }
-  S.tab = 'game';
-  S.mode = 'admin';
-  render();
-  await joinAdminRoom();
-  render();
-}
-
-/* ---------- Mehrere Quizze, jedes mit eigenem Code ---------- */
-function codeProblem(code, exceptId) {
-  const n = norm(code);
-  if (n.length < 4) return 'Der Code braucht mindestens 4 Zeichen (Buchstaben, Ziffern, - und _).';
-  if (S.secret && norm(S.secret.adminCode) === n) return 'Das ist dein Admin-Code. Wähle einen anderen.';
-  if (S.idx.items.some(x => x.id !== exceptId && norm(x.code) === n)) return 'Dieser Code gehört schon zu einem anderen Quiz.';
-  return '';
-}
-function uniqueCode() {
-  let c;
-  do { c = 'quiz-' + rand(4); } while (codeProblem(c, ''));
-  return c;
-}
-async function persistIndex() { await S.db.doc('quiz/index').set(clone(S.idx)); }
-
-async function closeRoom(notify) {
-  if (hb) clearInterval(hb);
-  hb = null;
-  if (S.nr) {
-    if (notify) {
-      try { await S.nr.emit('state', { closed: true }); await new Promise(r => setTimeout(r, 500)); } catch (e) { /* ignorieren */ }
-    }
-    try { await S.nr.leave(); } catch (e) { /* ignorieren */ }
-    S.nr = null;
-  }
-}
-
-async function switchQuiz(id) {
-  if (id === S.qid || S.busy) return;
-  S.busy = true;
-  try {
-    clearTimeout(saveT);
-    try { await S.db.doc('quiz/g_' + S.qid).set(clone(S.game)); } catch (e) { /* ignorieren */ }
-    await closeRoom(true);
-    S.idx.active = id;
-    await persistIndex();
-    S.peers = [];
-    await loadQuiz(id);
-    await joinAdminRoom();
-    setNote('Quiz gewechselt. Jetzt gilt der Code dieses Quiz.');
-  } catch (e) { setNote('Wechsel fehlgeschlagen. Versuche es noch einmal.'); }
-  S.busy = false;
-  render();
-}
-
-async function createQuiz() {
-  if (S.busy) return;
-  if (S.idx.items.length >= 20) return setNote('Mehr als 20 Quizze sind nicht möglich.');
-  const id = 'q' + Date.now().toString(36);
-  const board = blankBoard();
-  try {
-    await S.db.doc('quiz/b_' + id).set(board);
-    await S.db.doc('quiz/g_' + id).set(emptyGame());
-    S.idx.items.push({ id, title: board.title, code: uniqueCode() });
-    await persistIndex();
-  } catch (e) { return setNote('Quiz konnte nicht angelegt werden.'); }
-  await switchQuiz(id);
-  S.tab = 'edit'; S.draft = clone(S.board);
-  render();
-}
-
-async function changeCode(id, code) {
-  const p = codeProblem(code, id);
-  if (p) return p;
-  const it = S.idx.items.find(x => x.id === id), c = code.trim();
-  try {
-    if (id === S.qid) {
-      await closeRoom(true);
-      it.code = c; S.board.code = c;
-      await persistIndex();
-      await joinAdminRoom();
-    } else { it.code = c; await persistIndex(); }
-  } catch (e) { return 'Speichern fehlgeschlagen. Versuche es noch einmal.'; }
-  return '';
-}
-
-async function deleteQuiz(id) {
-  if (id === S.qid || S.idx.items.length < 2) return;
-  try {
-    await S.db.doc('quiz/b_' + id).delete();
-    await S.db.doc('quiz/g_' + id).delete();
-    S.idx.items = S.idx.items.filter(x => x.id !== id);
-    await persistIndex();
-  } catch (e) { return setNote('Löschen fehlgeschlagen.'); }
-  S.confirmDel = '';
-  setNote('Quiz gelöscht.');
-  render();
+  if (m.t === 'state') acceptState(m.d);
 }
 
 function acceptState(d) {
   if (!d || !Array.isArray(d.cats) || !Array.isArray(d.vals)) return;
-  S.pstate = d; S.lastState = Date.now();
-  S.mode = 'player';
+  clearTimeout(S.joinT); clearTimeout(S.rt);
+  S.lastState = Date.now();
+  const j = JSON.stringify(d);
+  if (j === S.lastJson && S.mode === 'player' && !S.stale) return;
+  S.lastJson = j; S.pstate = d; S.mode = 'player'; S.stale = false;
   render();
 }
 
-async function enterPlayer(rn, name) {
-  S.mode = 'join'; S.me = name; S.pstate = null; S.lastEmit = 0;
-  render();
-  try { S.nr = await S.room.join(rn); }
-  catch (e) { return leaveToLogin('Beitritt nicht möglich (' + ((e && e.code) || 'Fehler') + ').'); }
-  const room = S.nr;
-  room.on('state', m => {
-    const d = m && m.data;
-    if (d && d.closed) { leaveToLogin('Das Quiz wurde beendet oder der Code wurde geändert. Gib den neuen Code ein.'); return; }
-    S.lastEmit = Date.now();
-    acceptState(d);
-  }, e => { S.roomErr = (e && e.code) || 'Fehler'; });
-  room.onPeers(ch => {
-    if (S.nr !== room || Date.now() - S.lastEmit < 6000) return;
-    const a = ch.peers.find(p => p.presence && p.presence.role === 'admin' && p.presence.s);
-    if (a) acceptState(a.presence.s);
-  }, e => { S.roomErr = (e && e.code) || 'Fehler'; });
-  await room.presence({ role: 'player', name });
-  joinTimer = setTimeout(() => {
-    if (S.pstate || S.nr !== room) return;
-    const peers = room.peers();
-    const admin = peers.some(p => p.presence && p.presence.role === 'admin');
-    let why;
-    if (S.roomErr) why = 'Die Live-Verbindung wurde abgelehnt (' + S.roomErr + '). Öffne die Seite über deine Einladung und melde dich bei Claude an.';
-    else if (!room.connected()) why = 'Keine Verbindung zum Live-Server. Lade die Seite neu.';
-    else if (admin) why = 'Der Admin ist verbunden, hat aber noch keinen Spielstand geschickt. Versuche es in ein paar Sekunden noch einmal.';
-    else why = 'Mit diesem Code ist niemand im Spiel. Prüfe den Code (nicht den Admin-Code) und frage den Admin, ob er die Seite offen hat.';
-    leaveToLogin(why);
-  }, 10000);
-  staleTimer = setInterval(() => { if (S.mode === 'player') render(); }, 3000);
-}
-
-async function leaveToLogin(msg) {
-  clearTimeout(joinTimer); clearInterval(staleTimer);
-  if (S.nr) { try { await S.nr.leave(); } catch (e) { /* ignorieren */ } S.nr = null; }
-  S.mode = 'login'; S.pstate = null; S.roomErr = '';
+function backToLogin(msg) {
+  stopNet(false);
+  S.mode = 'login'; S.pstate = null; S.preview = false;
   render();
   showErr(msg);
 }
-
-/* ---------- Ansichten ---------- */
+function logoutAdmin() {
+  flush();
+  stopNet(true);
+  ssx.del(SSKEY);
+  S.mode = 'login'; S.preview = false;
+  render();
+}
+/* ---------- Ansichten: gemeinsam ---------- */
 function field(label, id, input) {
   return el('div', { class: 'field' }, el('label', { for: id, text: label }), input);
 }
@@ -587,67 +631,46 @@ function shell(title, right, ...body) {
     ...body,
     el('p', { id: 'note', class: 'note', role: 'status' }));
 }
-function copyText(text, btn, codeEl) {
-  const mark = () => {
-    const r = document.createRange(); r.selectNodeContents(codeEl);
-    const s = getSelection(); s.removeAllRanges(); s.addRange(r);
-    btn.textContent = 'Markiert';
+function mini(label, fn, cls) { return el('button', { type: 'button', class: 'mini ' + (cls || ''), text: label, onclick: fn }); }
+function copyText(text, btn, label) {
+  const done = ok => { btn.textContent = ok ? 'Kopiert' : 'Nicht möglich'; setTimeout(() => { btn.textContent = label; }, 1600); };
+  const fallback = () => {
+    try {
+      const t = el('textarea', { style: 'position:fixed;left:-9999px;top:0' });
+      t.value = text; document.body.append(t); t.select();
+      const ok = document.execCommand('copy'); t.remove(); done(ok);
+    } catch (e) { done(false); }
   };
-  if (navigator.clipboard && navigator.clipboard.writeText) {
-    navigator.clipboard.writeText(text).then(() => { btn.textContent = 'Kopiert'; setTimeout(() => { btn.textContent = 'Kopieren'; }, 1500); }, mark);
-  } else mark();
-}
-
-function viewBoot() { return shell('Quiz-Abend', null, el('p', { class: 'muted', text: 'Lade …' })); }
-
-function viewSetup() {
-  const a = el('input', { id: 'su-admin', value: rand(8), autocomplete: 'off', spellcheck: 'false' });
-  const g = el('input', { id: 'su-game', value: 'quiz-' + rand(4), autocomplete: 'off', spellcheck: 'false' });
-  const err = el('p', { id: 'err', class: 'err', hidden: true, role: 'alert' });
-  const form = el('form', { class: 'panel login stack', onsubmit: async e => {
-    e.preventDefault();
-    const ac = a.value.trim(), gc = g.value.trim();
-    if (ac.length < 4 || norm(gc).length < 4) return showErr('Beide Codes brauchen mindestens 4 Zeichen (Buchstaben, Ziffern, - und _).');
-    if (ac === gc || norm(gc) === norm(ac)) return showErr('Admin-Code und Spielcode müssen sich unterscheiden.');
-    try { await S.db.doc('quiz/secret').set({ adminCode: ac }); }
-    catch (x) { return showErr('Speichern fehlgeschlagen. Versuche es noch einmal.'); }
-    S.secret = { adminCode: ac };
-    S.firstCode = gc;
-    enterAdmin();
-  } },
-  el('h2', { text: 'Erste Einrichtung' }),
-  el('p', { class: 'muted', text: 'Der Admin-Code gehört nur dir und öffnet die Spielleitung. Den Spielcode gibst du deinen Freunden. Jedes Quiz bekommt später seinen eigenen Code, und du kannst ihn jederzeit ändern.' }),
-  field('Dein Admin-Code', 'su-admin', a),
-  field('Spielcode für dein erstes Quiz', 'su-game', g),
-  err,
-  el('button', { class: 'btn', type: 'submit', text: 'Speichern und starten' }));
-  return shell('Quiz-Abend', el('span', { class: 'chip', text: 'Einrichtung' }), form);
+  if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(() => done(true), fallback);
+  else fallback();
 }
 
 function viewLogin() {
-  const saved = store.get();
-  const code = el('input', { id: 'code', value: '', autocomplete: 'off', autocapitalize: 'off', spellcheck: 'false' });
-  const name = el('input', { id: 'pname', value: saved.name || '', maxlength: '16', autocomplete: 'nickname' });
+  const params = new URLSearchParams(location.search);
+  const code = el('input', { id: 'code', value: params.get('c') || '', autocomplete: 'off', autocapitalize: 'off', spellcheck: 'false' });
+  const name = el('input', { id: 'pname', value: lsx.get(NAMEKEY) || '', maxlength: '16', autocomplete: 'nickname' });
   const err = el('p', { id: 'err', class: 'err', hidden: true, role: 'alert' });
-  const form = el('form', { class: 'panel login stack', onsubmit: e => {
+  const form = el('form', { class: 'panel login stack', onsubmit: async e => {
     e.preventDefault();
+    showErr('');
     const c = code.value.trim();
     if (!c) return showErr('Bitte gib einen Code ein.');
-    if (S.isOwner && S.secret && c === S.secret.adminCode) { store.set({ name: name.value }); return enterAdmin(); }
+    let adm = null;
+    try { adm = await isAdminCode(c); } catch (x) { adm = null; }
+    if (adm) { lsx.set(NAMEKEY, clean(name.value)); return enterAdmin(); }
     const n = clean(name.value);
     if (!n) { name.focus(); return showErr('Bitte gib deinen Namen ein.'); }
-    if (!S.room) return showErr('Die Live-Verbindung fehlt. Öffne die Seite über deine Einladung und melde dich in Claude an.');
     const rn = norm(c);
-    if (rn.length < 2) return showErr('Dieser Code ist ungültig.');
-    store.set({ name: n });
-    enterPlayer(rn, n);
+    if (rn.length < 4) return showErr('Dieser Code ist ungültig.');
+    lsx.set(NAMEKEY, n);
+    joinGame(rn, n);
   } },
   el('h2', { text: 'Anmelden' }),
   field('Code', 'code', code),
   field('Dein Name (für Spieler)', 'pname', name),
   err,
   el('button', { class: 'btn', type: 'submit', text: 'Los geht’s' }),
-  el('p', { class: 'muted small', text: 'Spieler geben den Spielcode ihres Admins ein. Für jedes Quiz gibt es einen eigenen Code. Der Admin nutzt seinen eigenen Code.' }));
+  el('p', { class: 'muted small', text: 'Spieler geben den Spielcode ihres Admins ein. Der Admin nutzt seinen eigenen Code.' }));
   return shell('Quiz-Abend', null, form);
 }
 
@@ -655,7 +678,7 @@ function viewJoin() {
   return shell('Quiz-Abend', null, el('div', { class: 'panel login' }, el('p', { text: 'Verbinde mit dem Spiel …' })));
 }
 
-/* Brett: st hat die Form von publicState() */
+/* ---------- Brett, Frage, Teams ---------- */
 function boardEl(st, mode, onPick) {
   const b = el('div', { class: 'board ' + mode, style: '--n:' + st.cats.length });
   st.cats.forEach(c => b.append(el('div', { class: 'cat', text: c.n })));
@@ -679,64 +702,85 @@ function boardEl(st, mode, onPick) {
 function resultBanner(q) {
   if (!q || !q.d) return null;
   return el('div', { class: 'resbanner ' + (q.ok ? 'good' : 'bad'),
-    text: q.ok ? '\u2713 ' + q.w + ' liegt richtig: +' + q.p + ' Punkte' : '\u2717 ' + q.w + ' liegt falsch: 0 Punkte' });
+    text: q.ok ? '✓ ' + q.w + ' liegt richtig: +' + q.p + ' Punkte' : '✗ ' + q.w + ' liegt falsch: 0 Punkte' });
 }
 
-function qcard(q, answerText, answerNote) {
+function optionsEl(q, onPick) {
+  const wrap = el('div', { class: 'opts' });
+  q.o.forEach((t, i) => {
+    let cls = 'opt';
+    if (q.d) { if (i === q.ca) cls += ' right'; else if (i === q.pk) cls += ' wrong'; }
+    else if (i === q.pk) cls += ' picked';
+    const live = onPick && !q.d;
+    wrap.append(el('button', { type: 'button', class: cls, disabled: !live, 'aria-pressed': q.pk === i ? 'true' : 'false', onclick: live ? () => onPick(i) : null },
+      el('span', { class: 'ol', text: LETTERS[i] }), el('span', { class: 'ot', text: t })));
+  });
+  return wrap;
+}
+
+function qcard(q, imgSrc, answerText, answerNote, optsNode) {
   return el('div', { class: 'qcard' },
     el('div', { class: 'qmeta', text: q.cat + ' für ' + q.p }),
-    el('p', { class: 'qtext', text: q.t }),
+    q.t ? el('p', { class: 'qtext', text: q.t }) : null,
+    q.im ? (imgSrc ? el('img', { class: 'qimg', src: imgSrc, alt: 'Bild zur Frage' }) : el('p', { class: 'muted', text: 'Bild lädt …' })) : null,
+    optsNode || null,
     resultBanner(q),
     answerText != null ? el('div', { class: 'qans pop' }, el('span', { class: 'qlabel', text: answerNote }), answerText) : null);
-}
-
-function playerRow(n, st, admin, online, cur, t) {
-  const head = el('div', { class: 'phead' },
-    admin ? el('span', { class: 'dot' + (online.has(n) ? ' on' : ''), title: online.has(n) ? 'online' : 'offline' }) : null,
-    el('span', { class: 'pname' }, n, n === S.me && !admin ? el('span', { class: 'muted', text: ' (du)' }) : null),
-    el('span', { class: 'pscore', text: String(st.sc[n]) }));
-  if (!admin) return el('div', { class: 'prow' }, head);
-  return el('div', { class: 'prow' }, head, el('div', { class: 'pact' },
-    cur ? [mini('\u2713 Richtig +' + cur, () => answer(n, true), 'good'), mini('\u2717 Falsch 0', () => answer(n, false), 'bad')] : null,
-    mini('+100', () => adjust(n, 100)), mini('−100', () => adjust(n, -100)),
-    mini('Team wechseln', () => setTeam(n, 1 - t)),
-    online.has(n) ? null : mini('Entfernen', () => removePlayer(n))));
-}
-
-function teamCards(st, admin) {
-  const names = Object.keys(st.sc), tm = st.tm || {}, tn = st.tn || ['Team 1', 'Team 2'];
-  const online = admin ? new Set(S.peers.filter(p => p.presence && p.presence.role === 'player').map(p => clean(p.presence.name))) : null;
-  const total = t => names.filter(n => tm[n] === t).reduce((s, n) => s + st.sc[n], 0);
-  const cur = admin && S.game.cur && !isDone(S.game.cur) ? S.board.values[S.game.cur.r] : 0;
-  const card = t => {
-    const members = names.filter(n => tm[n] === t);
-    const box = el('section', { class: 'team t' + (t + 1) + (total(t) > total(1 - t) ? ' lead' : ''), 'aria-label': String(tn[t]) },
-      el('div', { class: 'thead' }, el('span', { class: 'tname', text: String(tn[t]) }), (st.tu === 1 ? 1 : 0) === t ? el('span', { class: 'tag', text: 'ist dran' }) : null, el('span', { class: 'ttotal', text: String(total(t)) })));
-    if (!members.length) box.append(el('p', { class: 'noplayer', text: 'Noch kein Spieler im Team.' }));
-    members.forEach(n => box.append(playerRow(n, st, admin, online, cur, t)));
-    return box;
-  };
-  return el('div', { class: 'teams' + (admin ? ' side' : '') }, card(0), card(1));
 }
 
 function teamBadge(t, tn) {
   return (t === 0 || t === 1) ? el('span', { class: 'tbadge t' + (t + 1), text: String(tn[t]) }) : null;
 }
 
+function playerRow(n, st, admin, t) {
+  const head = el('div', { class: 'phead' },
+    admin ? el('span', { class: 'dot' + (onlineSet().has(n) ? ' on' : ''), title: onlineSet().has(n) ? 'online' : 'offline' }) : null,
+    el('span', { class: 'pname' }, n, n === S.me && !admin ? el('span', { class: 'muted', text: ' (du)' }) : null),
+    el('span', { class: 'pscore', text: String(st.sc[n]) }));
+  if (!admin) return el('div', { class: 'prow' }, head);
+  const g = game(), cur = g.cur && !isDone(g.cur) ? g.cur : null, acts = [];
+  if (cur) {
+    const x = board().cats[cur.c].qs[cur.r], p = board().values[cur.r];
+    if (isMC(x) && cur.pick >= 0) {
+      const good = cur.pick === x.ok;
+      acts.push(mini(LETTERS[cur.pick] + ' werten: ' + (good ? '✓ richtig +' + p : '✗ falsch 0'), () => answer(n, good), good ? 'good' : 'bad'));
+    } else {
+      acts.push(mini('✓ Richtig +' + p, () => answer(n, true), 'good'), mini('✗ Falsch 0', () => answer(n, false), 'bad'));
+    }
+  }
+  acts.push(mini('+100', () => adjust(n, 100)), mini('−100', () => adjust(n, -100)), mini('Team wechseln', () => setTeam(n, 1 - t)));
+  if (!onlineSet().has(n)) acts.push(mini('Entfernen', () => removePlayer(n)));
+  return el('div', { class: 'prow' }, head, el('div', { class: 'pact' }, acts));
+}
+
+function teamCards(st, admin) {
+  const names = Object.keys(st.sc), tm = st.tm || {}, tn = st.tn || ['Team 1', 'Team 2'];
+  const total = t => names.filter(n => tm[n] === t).reduce((s, n) => s + st.sc[n], 0);
+  const card = t => {
+    const members = names.filter(n => tm[n] === t);
+    const box = el('section', { class: 'team t' + (t + 1) + (total(t) > total(1 - t) ? ' lead' : ''), 'aria-label': String(tn[t]) },
+      el('div', { class: 'thead' }, el('span', { class: 'tname', text: String(tn[t]) }),
+        (st.tu === 1 ? 1 : 0) === t ? el('span', { class: 'tag', text: 'ist dran' }) : null,
+        el('span', { class: 'ttotal', text: String(total(t)) })));
+    if (!members.length) box.append(el('p', { class: 'noplayer', text: 'Noch kein Spieler im Team.' }));
+    members.forEach(n => box.append(playerRow(n, st, admin, t)));
+    return box;
+  };
+  return el('div', { class: 'teams' + (admin ? ' side' : '') }, card(0), card(1));
+}
+
 function resultsPanel(st) {
   const tn = st.tn || ['Team 1', 'Team 2'], tm = st.tm || {}, names = Object.keys(st.sc), h = st.h || [];
   const total = t => names.filter(n => tm[n] === t).reduce((s, n) => s + st.sc[n], 0);
-  const okOf = x => x.length > 4 ? x[4] === 1 : !!x[3];
-  const right = t => h.filter(x => okOf(x) && tm[x[3]] === t).length;
+  const right = t => h.filter(x => x[4] === 1 && tm[x[3]] === t).length;
   const a = total(0), b = total(1);
   const headline = a === b ? 'Unentschieden' : (a > b ? tn[0] : tn[1]) + ' gewinnt';
   const table = el('div', { class: 'tablewrap' }, el('table', { class: 'results' },
-    el('thead', null, el('tr', null, el('th', { text: 'Feld' }), el('th', { text: 'Gewählt von' }), el('th', { text: 'Beantwortet von' }), el('th', { text: 'Ergebnis' }))),
+    el('thead', null, el('tr', null, el('th', { text: 'Feld, gewählt von' }), el('th', { text: 'Beantwortet von' }), el('th', { text: 'Ergebnis' }))),
     el('tbody', null, h.map(x => el('tr', null,
-      el('td', { text: (st.cats[x[0]] ? st.cats[x[0]].n : '?') + ' für ' + x[1] }),
-      el('td', null, teamBadge(x[2], tn)),
-      el('td', null, x[3] ? [x[3] + ' ', teamBadge(tm[x[3]], tn)] : el('span', { class: 'muted', text: '-' })),
-      el('td', { class: okOf(x) ? 'okcell' : 'badcell', text: okOf(x) ? '\u2713 richtig, +' + x[1] : '\u2717 falsch, 0' }))))));
+      el('td', null, el('span', { class: 'cellname', text: (st.cats[x[0]] ? st.cats[x[0]].n : '?') + ' für ' + x[1] }), teamBadge(x[2], tn)),
+      el('td', null, x[3] ? [el('span', { class: 'cellname', text: x[3] }), teamBadge(tm[x[3]], tn)] : el('span', { class: 'muted', text: '-' })),
+      el('td', { class: x[4] === 1 ? 'okcell' : 'badcell', text: x[4] === 1 ? '\u2713 richtig, +' + x[1] : '\u2717 falsch, 0' }))))));
   return el('div', { class: 'panel stack' },
     el('h2', { text: 'Ergebnis' }),
     el('p', { class: 'turnline me', text: headline }),
@@ -744,69 +788,162 @@ function resultsPanel(st) {
     h.length ? table : el('p', { class: 'muted', text: 'Noch keine Frage gespielt.' }));
 }
 
-function viewPlayer(st = S.pstate, preview = false) {
-  const tnames = st.tn || ['Team 1', 'Team 2'];
+/* Bild zu einem Schlüssel: Spieler bekommen es vom Admin, die Vorschau liest es direkt */
+function imgFor(key) {
+  if (S.mode === 'admin') {
+    const [c, r] = String(key).split('-').map(Number);
+    const x = board().cats[c] && board().cats[c].qs[r];
+    return x ? x.img : '';
+  }
+  return S.imgs[key] || '';
+}
+
+function viewPlayer(st, preview) {
+  const tn = st.tn || ['Team 1', 'Team 2'];
   const turnTeam = st.tu === 1 ? 1 : 0;
   const mine = !preview && (st.tm || {})[S.me] === turnTeam;
-  const stale = !preview && Date.now() - S.lastState > 14000;
   const open = st.cats.some(c => c.t.includes(1));
   let main;
   if (st.q) {
-    main = qcard(st.q, st.q.a, 'Lösung');
+    main = qcard(st.q, imgFor(st.q.im), st.q.a, 'Lösung', st.q.o ? optionsEl(st.q, null) : null);
   } else {
     const line = !open ? 'Alle Felder sind gespielt. Danke fürs Mitmachen!'
-      : mine ? 'Euer Team ist dran: ' + tnames[turnTeam]
-      : tnames[turnTeam] + ' ist dran.';
+      : mine ? 'Euer Team ist dran: ' + tn[turnTeam]
+      : tn[turnTeam] + ' ist dran.';
     main = el('div', { class: 'stack' },
       el('p', { class: 'turnline' + (mine && open ? ' me' : ''), text: line }),
       boardEl(st, 'view', null),
       (st.sr || !open) ? resultsPanel(st) : null);
   }
-  return shell(st.title || 'Quiz-Abend', el('span', { class: 'chip', text: preview ? 'Vorschau' : S.me }),
-    stale ? el('p', { class: 'banner', text: 'Die Verbindung zum Admin ist unterbrochen. Sobald er zurück ist, geht es weiter.' }) : null,
+  return shell(st.title || 'Quiz-Abend',
+    preview ? el('span', { class: 'chip', text: 'Vorschau' }) : el('div', { class: 'row' }, el('span', { class: 'chip', text: S.me }), mini('Verlassen', () => backToLogin(''))),
+    !preview && S.stale ? el('p', { class: 'banner', text: 'Die Verbindung zum Admin ist unterbrochen. Ich versuche es automatisch weiter. Sobald er zurück ist, geht es weiter.' }) : null,
     el('div', { class: 'stack' }, teamCards(st, false), main));
 }
-
 /* ---------- Admin ---------- */
-function mini(label, fn, cls) { return el('button', { type: 'button', class: 'mini ' + (cls || ''), text: label, onclick: fn }); }
+function enterAdmin() {
+  ssx.set(SSKEY, '1');
+  stopNet(false);
+  sanitizeGame();
+  S.mode = 'admin'; S.tab = 'game'; S.preview = false;
+  render();
+  startHost(0);
+}
+
+function liveBanner() {
+  if (S.live === 'on') return null;
+  const t = S.netErr;
+  let msg;
+  if (S.live === 'connecting') msg = 'Verbinde mit dem Vermittlungsserver …';
+  else if (t === 'lib') msg = 'Die Live-Bibliothek konnte nicht geladen werden. Prüfe dein Internet und lade die Seite neu. Freunde können sonst nicht beitreten.';
+  else if (t === 'unavailable-id') msg = 'Dieses Quiz läuft schon in einem anderen Tab oder auf einem anderen Gerät. Schliesse es dort und lade diese Seite neu.';
+  else if (t === 'network' || t === 'server-error' || t === 'socket-error' || t === 'socket-closed') msg = 'Keine Verbindung zum Vermittlungsserver. Freunde können nicht beitreten. Prüfe dein Internet und lade die Seite neu.';
+  else msg = 'Keine Live-Verbindung' + (t ? ' (' + t + ')' : '') + '. Freunde können nicht beitreten. Lade die Seite neu.';
+  return el('p', { class: 'banner', text: msg });
+}
 
 function viewAdminGame() {
-  const st = publicState(false), g = S.game;
-  const codeEl = el('span', { class: 'code', text: S.board.code });
-  const cbtn = el('button', { type: 'button', class: 'mini', text: 'Kopieren' });
-  cbtn.addEventListener('click', () => copyText(S.board.code, cbtn, codeEl));
-  const online = S.peers.filter(p => p.presence && p.presence.role === 'player').length;
-  const bar = el('div', { class: 'panel row' }, el('span', { class: 'muted', text: 'Spielcode' }), codeEl, cbtn,
-    el('span', { class: 'muted', text: online + ' online' }),
-    el('button', { type: 'button', class: 'mini', text: 'Code ändern', onclick: () => { S.tab = 'quiz'; render(); } }),
-    el('button', { type: 'button', class: 'mini', text: g.showResult ? 'Ergebnis verbergen' : 'Ergebnis zeigen', onclick: toggleResult }));
+  const st = publicState(), g = game(), it = cq();
+  const url = location.origin + location.pathname + '?c=' + encodeURIComponent(it.code);
+  const bar = el('div', { class: 'panel row' },
+    el('span', { class: 'muted', text: 'Spielcode' }),
+    el('span', { class: 'code', text: it.code }),
+    mini('Kopieren', e => copyText(it.code, e.currentTarget, 'Kopieren')),
+    mini('Einladungslink kopieren', e => copyText(url, e.currentTarget, 'Einladungslink kopieren')),
+    el('span', { class: 'muted', text: onlineSet().size + ' online' }),
+    mini('Code ändern', () => { S.tab = 'quiz'; render(); }),
+    mini(g.showResult ? 'Ergebnis verbergen' : 'Ergebnis zeigen', toggleResult));
   let main;
   if (g.cur) {
-    const x = S.board.cats[g.cur.c].qs[g.cur.r], done = isDone(g.cur);
-    const q = { cat: S.board.cats[g.cur.c].name, p: S.board.values[g.cur.r], t: x.q, d: done ? 1 : 0, w: g.cur.ok || '', ok: g.cur.res === 0 ? 0 : 1 };
+    const x = board().cats[g.cur.c].qs[g.cur.r], done = isDone(g.cur), mc = isMC(x), q = st.q;
+    const sol = mc ? LETTERS[x.ok] + ': ' + x.opts[x.ok] : (x.a || '(keine Lösung eingetragen)');
     main = el('div', { class: 'stack' },
-      qcard(q, null, ''),
+      qcard(q, x.img, null, '', mc ? optionsEl(q, setPick) : null),
       el('div', { class: 'panel stack solution' + (done ? ' shown' : '') },
         el('span', { class: 'qlabel', text: done ? 'Lösung (alle sehen sie jetzt)' : 'Lösung (nur du siehst sie)' }),
-        el('p', { class: 'solutiontext', text: x.a || '(keine Lösung eingetragen)' }),
-        done ? null : el('p', { class: 'muted', text: 'Drücke rechts bei dem Spieler, der geantwortet hat, Richtig oder Falsch. Danach sehen alle die Lösung und die Punkte werden eingetragen.' })),
+        el('p', { class: 'solutiontext', text: sol }),
+        done ? null : el('p', { class: 'muted', text: mc
+          ? 'Klicke oben die Antwort an, die das Team genannt hat. Dann drückst du bei dem Spieler, der geantwortet hat, auf „werten“. Alle sehen danach die Lösung.'
+          : 'Drücke bei dem Spieler, der geantwortet hat, Richtig oder Falsch. Danach sehen alle die Lösung und die Punkte werden eingetragen.' })),
       done ? el('button', { class: 'btn bigbtn', type: 'button', text: 'Weiter zum Brett', onclick: closeQ }) : null);
   } else {
     const open = st.cats.some(c => c.t.includes(1));
     main = el('div', { class: 'stack' },
-      el('p', { class: 'turnline', text: !open ? 'Alle Felder gespielt' : (g.tn[g.turn === 1 ? 1 : 0]) + ' wählt ein Feld' }),
+      el('p', { class: 'turnline', text: !open ? 'Alle Felder gespielt' : g.tn[g.turn === 1 ? 1 : 0] + ' wählt ein Feld' }),
       boardEl(st, 'admin', (c, r) => openTile(c, r)),
       (g.showResult || !open) ? resultsPanel(st) : null);
   }
   return el('div', { class: 'layout admin' }, el('div', { class: 'stack' }, bar, main), teamCards(st, true));
 }
 
+/* ---------- Fragen bearbeiten ---------- */
+function startEdit() {
+  S.draft = clone(board());
+  S.draft.cats.forEach(c => c.qs.forEach(x => { while (x.opts.length < 4) x.opts.push(''); x.opts.length = 4; }));
+}
 function parseValues(s) {
   const v = String(s).split(/[,;\s]+/).map(Number).filter(n => Number.isFinite(n) && n > 0 && n < 100000).map(Math.round);
   return v.length >= 3 && v.length <= 6 ? v : null;
 }
 function fitRows(d) {
-  d.cats.forEach(c => { while (c.qs.length < d.values.length) c.qs.push({ q: '', a: '' }); c.qs.length = d.values.length; });
+  d.cats.forEach(c => {
+    while (c.qs.length < d.values.length) c.qs.push({ q: '', a: '', type: 'text', opts: ['', '', '', ''], ok: 0, img: '', iv: 0 });
+    c.qs.length = d.values.length;
+  });
+}
+function loadImage(file) {
+  return new Promise((res, rej) => {
+    const fr = new FileReader();
+    fr.onerror = () => rej(new Error('read'));
+    fr.onload = () => {
+      const im = new Image();
+      im.onerror = () => rej(new Error('img'));
+      im.onload = () => {
+        const max = 800, sc = Math.min(1, max / Math.max(im.naturalWidth, im.naturalHeight));
+        const w = Math.max(1, Math.round(im.naturalWidth * sc)), h = Math.max(1, Math.round(im.naturalHeight * sc));
+        const cv = document.createElement('canvas');
+        cv.width = w; cv.height = h;
+        const cx = cv.getContext('2d');
+        cx.fillStyle = '#fff'; cx.fillRect(0, 0, w, h); cx.drawImage(im, 0, 0, w, h);
+        res(cv.toDataURL('image/jpeg', 0.72));
+      };
+      im.src = fr.result;
+    };
+    fr.readAsDataURL(file);
+  });
+}
+
+function qEditor(x, ci, r, v) {
+  const id = ci + '-' + r;
+  const seg = el('div', { class: 'seg', role: 'group', 'aria-label': 'Fragetyp' },
+    ['text', 'mc'].map(t => el('button', { type: 'button', class: 'segbtn', 'aria-pressed': x.type === t ? 'true' : 'false',
+      text: t === 'mc' ? 'Multiple Choice' : 'Text', onclick: () => { x.type = t; render(); } })));
+  const q = el('textarea', { id: 'cq-' + id, 'aria-label': 'Frage für ' + v + ' Punkte', maxlength: '500',
+    placeholder: 'Frage (leer lassen und kein Bild, dann bleibt das Feld ausgeblendet)', oninput: e => { x.q = e.target.value; } });
+  q.value = x.q;
+  let ans;
+  if (x.type === 'mc') {
+    ans = el('div', { class: 'stack' }, el('span', { class: 'hint', text: 'Markiere die richtige Antwort. Leere Felder werden nicht verwendet (mindestens 2).' }),
+      [0, 1, 2, 3].map(i => el('div', { class: 'optrow' },
+        el('input', { type: 'radio', name: 'ok-' + id, id: 'cr-' + id + '-' + i, 'aria-label': 'Antwort ' + LETTERS[i] + ' ist richtig', checked: x.ok === i, onchange: () => { x.ok = i; } }),
+        el('span', { class: 'ol', text: LETTERS[i] }),
+        el('input', { id: 'co-' + id + '-' + i, 'aria-label': 'Antwort ' + LETTERS[i], placeholder: 'Antwort ' + LETTERS[i], maxlength: '120', value: x.opts[i], oninput: e => { x.opts[i] = e.target.value; } }))));
+  } else {
+    ans = el('input', { id: 'ca-' + id, 'aria-label': 'Lösung für ' + v + ' Punkte', placeholder: 'Lösung', maxlength: '150', value: x.a, oninput: e => { x.a = e.target.value; } });
+  }
+  const file = el('input', { id: 'cf-' + id, type: 'file', accept: 'image/*', 'aria-label': 'Bild hinzufügen', onchange: async e => {
+    const f = e.target.files && e.target.files[0];
+    if (!f) return;
+    try { x.img = await loadImage(f); x.iv = Date.now(); render(); }
+    catch (err) { setNote('Das Bild konnte nicht gelesen werden.'); }
+  } });
+  const img = el('div', { class: 'imgrow' },
+    x.img ? el('img', { class: 'imgprev', src: x.img, alt: 'Bild zur Frage' }) : null,
+    x.img ? mini('Bild entfernen', () => { x.img = ''; x.iv = 0; render(); }, 'bad') : null,
+    el('div', { class: 'field' }, el('label', { for: 'cf-' + id, text: x.img ? 'Bild ersetzen' : 'Bild hinzufügen (optional)' }), file));
+  return el('div', { class: 'qrow' },
+    el('div', { class: 'qpts', text: String(v) }),
+    el('div', { class: 'stack' }, seg, q, ans, img));
 }
 
 function viewEditor() {
@@ -822,46 +959,116 @@ function viewEditor() {
       el('div', { class: 'field', style: 'flex:1 1 200px' }, el('label', { for: 'cn-' + ci, text: 'Thema ' + (ci + 1) }),
         el('input', { id: 'cn-' + ci, value: c.name, maxlength: '24', oninput: e => { c.name = e.target.value; } })),
       d.cats.length > 1 ? el('button', { type: 'button', class: 'btn danger', text: 'Thema löschen', onclick: () => { d.cats.splice(ci, 1); render(); } }) : null),
-    d.values.map((v, r) => el('div', { class: 'qrow' },
-      el('div', { class: 'qpts', text: String(v) }),
-      el('div', { class: 'stack' },
-        el('textarea', { id: 'cq-' + ci + '-' + r, 'aria-label': 'Frage für ' + v + ' Punkte', placeholder: 'Frage (leer lassen, dann bleibt das Feld ausgeblendet)', maxlength: '600', oninput: e => { c.qs[r].q = e.target.value; }, text: c.qs[r].q }),
-        el('input', { id: 'ca-' + ci + '-' + r, 'aria-label': 'Antwort für ' + v + ' Punkte', placeholder: 'Antwort', maxlength: '150', value: c.qs[r].a, oninput: e => { c.qs[r].a = e.target.value; } }))))));
-  const save = async () => {
-    const b = clone(d);
-    b.title = b.title.trim() || 'Quiz-Abend';
-    b.cats.forEach((c, i) => { c.name = c.name.trim() || 'Thema ' + (i + 1); c.qs.forEach(x => { x.q = x.q.trim(); x.a = x.a.trim(); }); });
-    const stored = clone(b); delete stored.code;
-    try {
-      await S.db.doc('quiz/b_' + S.qid).set(stored);
-      S.idx.items.find(x => x.id === S.qid).title = b.title;
-      await persistIndex();
-    } catch (e) { return setNote('Speichern fehlgeschlagen. Versuche es noch einmal.'); }
-    S.board = b; S.draft = clone(b); sanitizeGame();
-    setNote('Fragen gespeichert.');
-    commit();
-    S.tab = 'edit'; render();
-  };
+    d.values.map((v, r) => qEditor(c.qs[r], ci, r, v))));
   return el('div', { class: 'stack' },
     el('div', { class: 'panel row' },
       el('div', { class: 'field', style: 'flex:2 1 220px' }, el('label', { for: 'ed-title', text: 'Titel des Abends' }), title),
       el('div', { class: 'field', style: 'flex:1 1 200px' }, el('label', { for: 'ed-vals', text: 'Punktwerte (3 bis 6)' }), vals)),
     cats,
     el('div', { class: 'row' },
-      d.cats.length < 6 ? el('button', { type: 'button', class: 'btn ghost', text: 'Thema hinzufügen', onclick: () => { d.cats.push({ name: '', qs: d.values.map(() => ({ q: '', a: '' })) }); render(); } }) : null,
-      el('button', { type: 'button', class: 'btn', text: 'Speichern', onclick: save })));
+      d.cats.length < 6 ? el('button', { type: 'button', class: 'btn ghost', text: 'Thema hinzufügen', onclick: () => { d.cats.push({ name: '', qs: d.values.map(() => ({ q: '', a: '', type: 'text', opts: ['', '', '', ''], ok: 0, img: '', iv: 0 })) }); render(); } }) : null,
+      el('button', { type: 'button', class: 'btn', text: 'Speichern', onclick: saveEdit })));
+}
+
+function saveEdit() {
+  const d = clone(S.draft), problems = [];
+  d.title = d.title.trim() || 'Quiz-Abend';
+  d.cats.forEach((c, ci) => {
+    c.name = c.name.trim() || 'Thema ' + (ci + 1);
+    c.qs.forEach((x, r) => {
+      x.q = x.q.trim(); x.a = x.a.trim();
+      const label = c.name + ' für ' + d.values[r];
+      if (!hasContent(x)) { x.type = 'text'; x.opts = []; x.ok = 0; x.a = ''; return; }
+      if (x.type === 'mc') {
+        const opts = []; let ok = -1;
+        x.opts.forEach((o, i) => { if (o.trim()) { if (i === x.ok) ok = opts.length; opts.push(o.trim()); } });
+        if (opts.length < 2) problems.push(label + ': Multiple Choice braucht mindestens 2 Antworten.');
+        else if (ok < 0) problems.push(label + ': Markiere die richtige Antwort.');
+        else { x.opts = opts; x.ok = ok; }
+      } else x.opts = [];
+    });
+  });
+  if (problems.length) return setNote(problems[0] + (problems.length > 1 ? ' (und ' + (problems.length - 1) + ' weitere)' : ''));
+  DB.boards[DB.active] = normBoard(d);
+  cq().title = d.title;
+  sanitizeGame();
+  flush();
+  startEdit();
+  commit();
+  render();
+  setNote('Fragen gespeichert.');
+}
+
+/* ---------- Mehrere Quizze ---------- */
+async function codeProblem(code, exceptId) {
+  const n = norm(code);
+  if (n.length < 4) return 'Der Code braucht mindestens 4 Zeichen (Buchstaben, Ziffern, - und _).';
+  if (DB.items.some(x => x.id !== exceptId && norm(x.code) === n)) return 'Dieser Code gehört schon zu einem anderen Quiz.';
+  try { if (await isAdminCode(code)) return 'Das ist dein Admin-Code. Wähle einen anderen.'; } catch (e) { /* ignorieren */ }
+  return '';
+}
+function uniqueCode() {
+  let c;
+  do { c = 'quiz-' + rand(4); } while (DB.items.some(x => norm(x.code) === c));
+  return c;
+}
+async function switchQuiz(id) {
+  if (id === DB.active || S.busy) return;
+  S.busy = true;
+  flush();
+  stopNet(true);
+  DB.active = id;
+  sanitizeGame();
+  flush();
+  S.preview = false;
+  render();
+  await startHost(700);
+  S.busy = false;
+  render();
+  setNote('Quiz gewechselt. Jetzt gilt der Code dieses Quiz.');
+}
+async function createQuiz() {
+  if (S.busy) return;
+  if (DB.items.length >= 20) return setNote('Mehr als 20 Quizze sind nicht möglich.');
+  const id = 'q' + Date.now().toString(36), b = blankBoard();
+  DB.boards[id] = b; DB.games[id] = emptyGame();
+  DB.items.push({ id, title: b.title, code: uniqueCode() });
+  flush();
+  await switchQuiz(id);
+  S.tab = 'edit'; startEdit();
+  render();
+}
+async function changeCode(id, code) {
+  const p = await codeProblem(code, id);
+  if (p) return p;
+  const it = DB.items.find(x => x.id === id);
+  if (id === DB.active) {
+    stopNet(true);
+    it.code = code.trim(); flush();
+    await startHost(700);
+  } else { it.code = code.trim(); flush(); }
+  return '';
+}
+function deleteQuiz(id) {
+  if (id === DB.active || DB.items.length < 2) return;
+  DB.items = DB.items.filter(x => x.id !== id);
+  delete DB.boards[id]; delete DB.games[id];
+  flush();
+  S.confirmDel = '';
+  render();
+  setNote('Quiz gelöscht.');
 }
 
 function viewQuizzes() {
-  const items = S.idx.items.map(it => {
-    const active = it.id === S.qid;
+  const items = DB.items.map(it => {
+    const active = it.id === DB.active;
     const inp = el('input', { id: 'qc-' + it.id, value: it.code, autocomplete: 'off', spellcheck: 'false' });
     const err = el('p', { class: 'err', hidden: true, role: 'alert' });
     const save = async () => {
       const p = await changeCode(it.id, inp.value);
       if (p) { err.textContent = p; err.hidden = false; return; }
-      setNote(active ? 'Code gespeichert. Alle Spieler im Quiz wurden abgemeldet.' : 'Code gespeichert.');
       render();
+      setNote(active ? 'Code gespeichert. Alle Spieler im Quiz wurden abgemeldet.' : 'Code gespeichert.');
     };
     return el('div', { class: 'panel qitem' + (active ? ' on' : '') },
       el('div', { class: 'row' }, el('strong', { class: 'qtitle', text: it.title }), active ? el('span', { class: 'tag', text: 'läuft' }) : null),
@@ -882,29 +1089,40 @@ function viewQuizzes() {
     el('div', { class: 'row' }, el('button', { class: 'btn', type: 'button', text: 'Neues Quiz', onclick: createQuiz })));
 }
 
+/* ---------- Einstellungen, Sicherung ---------- */
+function exportBackup() {
+  flush();
+  const blob = new Blob([JSON.stringify({ app: 'quiz-abend', v: 1, data: DB })], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = el('a', { href: url, download: 'quiz-abend-sicherung.json' });
+  document.body.append(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 3000);
+  setNote('Sicherung gespeichert (Downloads-Ordner).');
+}
+async function applyImport() {
+  if (!S.importData) return;
+  stopNet(true);
+  DB = S.importData; S.importData = null;
+  sanitizeGame(); flush(); S.preview = false;
+  render();
+  await startHost(700);
+  render();
+  setNote('Sicherung geladen.');
+}
+
 function viewSettings() {
-  const a = el('input', { id: 'st-admin', value: S.secret.adminCode, autocomplete: 'off', spellcheck: 'false' });
-  const t0 = el('input', { id: 'st-t1', value: S.game.tn[0], maxlength: '16', autocomplete: 'off' });
-  const t1 = el('input', { id: 'st-t2', value: S.game.tn[1], maxlength: '16', autocomplete: 'off' });
-  const err = el('p', { id: 'err', class: 'err', hidden: true, role: 'alert' });
-  const form = el('form', { class: 'panel stack', onsubmit: async e => {
+  const g = game();
+  const t0 = el('input', { id: 'st-t1', value: g.tn[0], maxlength: '16', autocomplete: 'off' });
+  const t1 = el('input', { id: 'st-t2', value: g.tn[1], maxlength: '16', autocomplete: 'off' });
+  const form = el('form', { class: 'panel stack', onsubmit: e => {
     e.preventDefault();
-    const ac = a.value.trim();
-    if (ac.length < 4) return showErr('Der Admin-Code braucht mindestens 4 Zeichen.');
-    if (S.idx.items.some(x => norm(x.code) === norm(ac))) return showErr('Der Admin-Code darf nicht gleich einem Spielcode sein.');
-    try { await S.db.doc('quiz/secret').set({ adminCode: ac }); } catch (x) { return showErr('Speichern fehlgeschlagen.'); }
-    S.secret = { adminCode: ac };
-    S.game.tn = [t0.value.trim().slice(0, 16) || 'Team 1', t1.value.trim().slice(0, 16) || 'Team 2'];
+    g.tn = [t0.value.trim().slice(0, 16) || 'Team 1', t1.value.trim().slice(0, 16) || 'Team 2'];
     commit();
-    showErr('');
     setNote('Gespeichert.');
   } },
-  el('h2', { text: 'Admin-Code' }),
-  field('Dein Admin-Code', 'st-admin', a),
   el('h2', { text: 'Teams in diesem Quiz' }),
   field('Name von Team 1', 'st-t1', t0),
   field('Name von Team 2', 'st-t2', t1),
-  err,
   el('div', { class: 'row' }, el('button', { class: 'btn', type: 'submit', text: 'Speichern' })));
   const reset = el('div', { class: 'panel stack' }, el('h2', { text: 'Spiel zurücksetzen' }),
     el('p', { class: 'muted', text: 'Setzt alle Punkte dieses Quiz auf 0 und macht alle Felder wieder frei. Die Fragen bleiben.' }),
@@ -912,13 +1130,35 @@ function viewSettings() {
       ? [el('button', { class: 'btn danger', type: 'button', text: 'Ja, zurücksetzen', onclick: () => { resetGame(); render(); setNote('Spiel zurückgesetzt.'); } }),
          el('button', { class: 'btn ghost', type: 'button', text: 'Abbrechen', onclick: () => { S.confirmReset = false; render(); } })]
       : el('button', { class: 'btn ghost', type: 'button', text: 'Zurücksetzen', onclick: () => { S.confirmReset = true; render(); } })));
-  return el('div', { class: 'stack' }, form, reset,
-    el('p', { class: 'muted small', text: 'Freunde öffnen die Seite über deine Einladung (Teilen, per E-Mail) und geben den Spielcode des laufenden Quiz ein.' }));
+  const imp = el('input', { id: 'st-import', type: 'file', accept: 'application/json,.json', 'aria-label': 'Sicherung auswählen', onchange: e => {
+    const f = e.target.files && e.target.files[0];
+    if (!f) return;
+    const fr = new FileReader();
+    fr.onload = () => {
+      try {
+        const p = JSON.parse(String(fr.result));
+        const data = fixDB(p && p.data ? p.data : p);
+        if (!data) throw new Error('leer');
+        S.importData = data; render();
+      } catch (x) { S.importData = null; setNote('Diese Datei ist keine gültige Sicherung.'); }
+    };
+    fr.readAsText(f);
+  } });
+  const backup = el('div', { class: 'panel stack' }, el('h2', { text: 'Sicherung' }),
+    el('p', { class: 'muted', text: 'Deine Quizze, Bilder und Punkte liegen nur in diesem Browser auf diesem Gerät. Speichere eine Sicherung, bevor du das Gerät wechselst oder die Browserdaten löschst.' }),
+    el('div', { class: 'row' }, el('button', { class: 'btn ghost', type: 'button', text: 'Sicherung speichern', onclick: exportBackup })),
+    field('Sicherung laden (ersetzt alles, was jetzt hier ist)', 'st-import', imp),
+    S.importData ? el('div', { class: 'row' },
+      el('span', { text: S.importData.items.length + ' Quiz' + (S.importData.items.length === 1 ? '' : 'ze') + ' gefunden.' }),
+      el('button', { class: 'btn danger', type: 'button', text: 'Jetzt ersetzen', onclick: applyImport }),
+      el('button', { class: 'btn ghost', type: 'button', text: 'Abbrechen', onclick: () => { S.importData = null; render(); } })) : null);
+  return el('div', { class: 'stack' }, form, reset, backup,
+    el('p', { class: 'muted small', text: 'Der Admin-Code steht (verschlüsselt) in der Datei dieser Seite. Um ihn zu ändern, braucht es eine neue Datei.' }));
 }
 
 function viewAdmin() {
   if (S.preview) {
-    const page = viewPlayer(publicState(false), true);
+    const page = viewPlayer(publicState(), true);
     page.insertBefore(el('div', { class: 'banner row' },
       el('span', { text: 'Spieleransicht: So sehen deine Spieler die Seite. Du bist ohne Code hier, weil du Admin bist.' }),
       el('button', { class: 'btn', type: 'button', text: 'Zurück zur Spielleitung', onclick: () => { S.preview = false; render(); } })), page.children[1]);
@@ -927,24 +1167,27 @@ function viewAdmin() {
   const tabs = [['game', 'Spiel'], ['quiz', 'Quizze'], ['edit', 'Fragen'], ['set', 'Einstellungen']];
   const bar = el('div', { class: 'tabs', role: 'tablist' }, tabs.map(([k, label]) => el('button', {
     type: 'button', class: 'tab', role: 'tab', 'aria-selected': S.tab === k ? 'true' : 'false', text: label,
-    onclick: () => { if (k === 'edit' && S.tab !== 'edit') S.draft = clone(S.board); S.tab = k; S.confirmReset = false; S.confirmDel = ''; render(); }
+    onclick: () => { if (k === 'edit' && S.tab !== 'edit') startEdit(); S.tab = k; S.confirmReset = false; S.confirmDel = ''; S.importData = null; render(); }
   })));
   const body = S.tab === 'game' ? viewAdminGame() : S.tab === 'quiz' ? viewQuizzes() : S.tab === 'edit' ? viewEditor() : viewSettings();
-  return shell(S.board.title, el('div', { class: 'row' }, el('button', { class: 'mini', type: 'button', text: 'Spieleransicht', onclick: () => { S.preview = true; render(); } }), el('span', { class: 'chip', text: 'Admin' })), bar,
-    S.live ? null : el('p', { class: 'banner', text: 'Keine Live-Verbindung. Du kannst Fragen bearbeiten, aber Freunde können nicht beitreten.' }),
-    body);
+  return shell(board().title,
+    el('div', { class: 'row' }, mini('Spieleransicht', () => { S.preview = true; render(); }), mini('Abmelden', logoutAdmin), el('span', { class: 'chip', text: 'Admin' })),
+    bar, liveBanner(), body);
 }
 
-/* ---------- Anzeige ---------- */
+/* ---------- Anzeige und Start ---------- */
 function render() {
   const app = $('#app');
   const active = document.activeElement && document.activeElement.id;
-  const view = { boot: viewBoot, setup: viewSetup, login: viewLogin, join: viewJoin, player: viewPlayer, admin: viewAdmin }[S.mode];
+  const view = { login: viewLogin, join: viewJoin, player: () => viewPlayer(S.pstate, false), admin: viewAdmin }[S.mode];
   app.replaceChildren(view());
   if (active) { const n = document.getElementById(active); if (n && n.focus && S.mode !== 'player') n.focus(); }
 }
+/* Während du tippst (Fragen, Einstellungen), wird die Seite nicht von Beitritten neu gezeichnet */
+function refreshAdmin() { if (S.mode === 'admin' && (S.preview || S.tab === 'game' || S.tab === 'quiz')) render(); }
 
-boot();
-</script>
-
-</body></html>
+(function boot() {
+  S.mode = 'login';
+  if (ssx.get(SSKEY) === '1') enterAdmin(); else render();
+})();
+</script></body></html>
