@@ -24,7 +24,7 @@
 html{background:var(--bg)}
 body{background-color:var(--bg);background-image:radial-gradient(ellipse 90% 60% at 50% -8%,var(--bg-glow) 0%,rgba(122,44,255,.35) 38%,rgba(7,5,13,0) 75%);background-repeat:no-repeat;background-attachment:fixed;color:var(--ink);font:16px/1.45 var(--body);padding-inline:16px;padding-block:22px 56px;margin:0;min-height:100%}
 *{box-sizing:border-box}
-.wrap{max-width:1120px;margin:0 auto;display:flex;flex-direction:column;gap:18px}
+.wrap{max-width:1560px;margin:0 auto;display:flex;flex-direction:column;gap:18px}
 .top{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
 .brand{margin:0;font:400 clamp(26px,6.5vw,46px)/1.05 var(--display);letter-spacing:.01em;text-transform:uppercase;color:#fff;text-shadow:0 4px 0 var(--accent),0 8px 22px rgba(0,0,0,.5);overflow-wrap:anywhere;min-width:0}
 .chip{font:700 13px var(--body);letter-spacing:.08em;text-transform:uppercase;padding:7px 14px;border-radius:999px;background:rgba(255,255,255,.1);border:2px solid var(--panel-line);color:var(--ink)}
@@ -57,11 +57,11 @@ input:focus-visible,textarea:focus-visible,button:focus-visible{outline:3px soli
 .tab{font:700 15px var(--body);padding:9px 16px;border-radius:10px;border:2px solid var(--panel-line);background:rgba(255,255,255,.06);color:var(--ink);cursor:pointer}
 .tab[aria-selected="true"]{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
 .layout{display:grid;gap:18px;grid-template-columns:minmax(0,1fr)}
-@media (min-width:920px){.layout.admin{grid-template-columns:minmax(0,1fr) 350px;align-items:start}}
+@media (min-width:920px){.layout.admin{grid-template-columns:minmax(0,1fr) 320px;align-items:start}}
 .banner{padding:11px 15px;border-radius:10px;border:2px solid var(--accent);background:rgba(255,61,154,.12);font-weight:600}
 
 /* Brett */
-.board{display:grid;gap:7px;grid-template-columns:repeat(var(--n,3),minmax(0,1fr));padding:10px;border-radius:16px;background:rgba(8,4,18,.6);border:2px solid var(--panel-line)}
+.board{display:grid;gap:10px;grid-template-columns:repeat(var(--n,3),minmax(0,1fr));padding:10px;border-radius:16px;background:rgba(8,4,18,.6);border:2px solid var(--panel-line)}
 .cat{background:linear-gradient(var(--head-top),var(--head-bot));color:#fff;font:400 clamp(11px,2.5vw,20px)/1.15 var(--display);text-transform:uppercase;text-align:center;padding:10px 4px;display:flex;align-items:center;justify-content:center;min-height:3.6em;border-radius:8px;border-bottom:4px solid var(--accent);overflow-wrap:anywhere}
 .tile{border:2px solid var(--tile-rim);border-radius:8px;background:linear-gradient(var(--tile-top),var(--tile-bot));color:#fff;font:900 clamp(26px,7vw,58px)/1 var(--num);letter-spacing:.02em;padding-block:clamp(12px,3.6vw,28px);cursor:default;min-width:0;text-shadow:0 3px 0 rgba(25,0,70,.65),0 0 20px rgba(255,61,154,.6);box-shadow:0 5px 0 var(--tile-edge),inset 0 2px 0 rgba(255,255,255,.25)}
 .tile.used{background:var(--used);border-color:transparent;color:transparent;text-shadow:none;box-shadow:inset 0 3px 8px rgba(0,0,0,.6)}
@@ -194,7 +194,7 @@ const ADMIN_SALT = 'quizabend-v1', ADMIN_ITER = 150000, ADMIN_HASH = '8985912627
 const PEER_PREFIX = 'qabend-nw-';
 const LSKEY = 'quizabend.sa.v1', SSKEY = 'quizabend.sa.admin', NAMEKEY = 'quizabend.sa.name';
 const LETTERS = 'ABCD';
-const VERSION = 'Version 8';
+const VERSION = 'Version 9';
 
 const lsx = {
   get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
@@ -252,7 +252,7 @@ async function isAdminCode(code) {
 const tq = (q, a) => ({ q, a, type: 'text', opts: ['', '', '', ''], ok: 0, img: '', iv: 0, au: '', av: 0 });
 const mq = (q, opts, ok) => ({ q, a: '', type: 'mc', opts, ok, img: '', iv: 0, au: '', av: 0 });
 function defaultBoard() {
-  return {
+  return normBoard({
     title: 'Quiz-Abend',
     values: [100, 200, 300, 400, 500],
     cats: [
@@ -275,17 +275,20 @@ function defaultBoard() {
         tq('Wie heisst die Hauptfigur der Zelda-Reihe?', 'Link'),
         tq('Welche Firma hat die PlayStation entwickelt?', 'Sony')] }
     ]
-  };
+  });
 }
 function blankBoard() {
   const cat = n => ({ name: n, qs: [1, 2, 3, 4, 5].map(() => tq('', '')) });
-  return { title: 'Neues Quiz', values: [100, 200, 300, 400, 500], cats: [cat('Thema 1'), cat('Thema 2'), cat('Thema 3')] };
+  return normBoard({ title: 'Neues Quiz', values: [100, 200, 300, 400, 500], cats: [cat('Thema 1'), cat('Thema 2'), cat('Thema 3')] });
 }
 function normBoard(b) {
   b.values = Array.isArray(b.values) && b.values.length ? b.values.map(Number) : [100, 200, 300, 400, 500];
   b.cats = Array.isArray(b.cats) ? b.cats : [];
   b.cats.forEach(c => {
     c.name = String(c.name || '');
+    /* Punkte pro Thema: jedes Thema hat seine eigenen Werte (Standard: die allgemeinen Punktwerte) */
+    c.vals = Array.isArray(c.vals) && c.vals.length === b.values.length && c.vals.every(v => Number.isFinite(Number(v)) && Number(v) > 0)
+      ? c.vals.map(v => Math.round(Number(v))) : b.values.slice();
     c.qs = Array.isArray(c.qs) ? c.qs : [];
     while (c.qs.length < b.values.length) c.qs.push(tq('', ''));
     c.qs.length = b.values.length;
@@ -435,6 +438,7 @@ function publicState() {
   const b = board(), g = game();
   const cats = b.cats.map((c, ci) => ({
     n: c.name,
+    v: c.vals.slice(),
     t: b.values.map((v, ri) => hasContent(c.qs[ri]) ? (g.used[ci + '-' + ri] ? 2 : 1) : 0)
   }));
   let q = null;
@@ -442,7 +446,7 @@ function publicState() {
     const c = b.cats[g.cur.c], x = c && c.qs[g.cur.r];
     if (x) {
       const done = isDone(g.cur), mc = isMC(x);
-      q = { c: g.cur.c, r: g.cur.r, p: b.values[g.cur.r], cat: c.name, t: String(x.q).slice(0, 500),
+      q = { c: g.cur.c, r: g.cur.r, p: c.vals[g.cur.r], cat: c.name, t: String(x.q).slice(0, 500),
         im: x.img ? imgKey(g.cur.c, g.cur.r) : '', au: x.au ? auKey(g.cur.c, g.cur.r) : '', ap: g.cur.ap || 0, ty: mc ? 'mc' : 'text', o: mc ? x.opts.slice(0, 4) : null,
         pk: mc && g.cur.pick >= 0 ? g.cur.pick : -1, d: done ? 1 : 0, w: g.cur.ok || '', ok: g.cur.res === 0 ? 0 : 1,
         a: done && !mc ? String(x.a).slice(0, 200) : null, ca: done && mc ? x.ok : -1 };
@@ -483,7 +487,7 @@ function setPick(i) {
 function answer(name, correct) {
   const g = game();
   if (!g.cur || isDone(g.cur)) return;
-  const p = board().values[g.cur.r];
+  const p = board().cats[g.cur.c].vals[g.cur.r];
   if (correct) g.scores[name] = (g.scores[name] || 0) + p;
   g.tc = Array.isArray(g.tc) ? g.tc : [0, 0]; g.tc[g.cur.team] = (g.tc[g.cur.team] || 0) + 1;
   g.cur.done = true; g.cur.ok = name; g.cur.res = correct ? 1 : 0;
@@ -809,15 +813,16 @@ function boardEl(st, mode, onPick, onUsed) {
   st.cats.forEach(c => b.append(el('div', { class: 'cat', text: c.n })));
   st.vals.forEach((v, r) => st.cats.forEach((c, ci) => {
     const t = c.t[r];
+    const pv = c.v && c.v[r] !== undefined ? c.v[r] : v;
     const live = t === 1 && onPick, look = t === 2 && onUsed;
     b.append(el('button', {
       type: 'button',
       class: 'tile ' + (t === 1 ? 'open' : t === 2 ? 'used' : 'none') + (look ? ' look' : ''),
       disabled: !(live || look),
-      'aria-label': t === 1 ? c.n + ' für ' + v + ' Punkte' : look ? c.n + ' für ' + v + ' Punkte ansehen (schon gespielt)' : null,
+      'aria-label': t === 1 ? c.n + ' für ' + pv + ' Punkte' : look ? c.n + ' für ' + pv + ' Punkte ansehen (schon gespielt)' : null,
       'aria-hidden': (t === 1 || look) ? null : 'true',
       tabindex: (live || look) ? null : '-1',
-      text: (t === 1 || look) ? String(v) : '',
+      text: (t === 1 || look) ? String(pv) : '',
       onclick: live ? () => onPick(ci, r) : look ? () => onUsed(ci, r) : null
     }));
   }));
@@ -1018,7 +1023,7 @@ function liveBanner() {
 /* Richtig/Falsch: grosse Knöpfe unten bei der Frage. Das Team am Zug ist fest (Team 1, Team 2, Team 1 …),
    die Spieler des Teams wechseln sich automatisch ab. */
 function verdictBox(x, mc) {
-  const g = game(), cur = g.cur, p = board().values[cur.r], t = cur.team, who = answerer(g);
+  const g = game(), cur = g.cur, p = board().cats[cur.c].vals[cur.r], t = cur.team, who = answerer(g);
   const box = el('div', { class: 'verdict stack' },
     el('p', { class: 'wholine' }, el('span', { class: 'tbadge t' + (t + 1), text: String(g.tn[t]) }),
       el('span', { text: who ? ' ' + who + ' antwortet' : ' hat noch keinen Spieler' })));
@@ -1039,7 +1044,7 @@ function verdictBox(x, mc) {
 
 /* Schon gespielte Frage ansehen: nur Ansicht, nichts kann geändert werden */
 function reviewView(c, r) {
-  const b = board(), x = b.cats[c].qs[r], p = b.values[r], mc = isMC(x), g = game();
+  const b = board(), x = b.cats[c].qs[r], p = b.cats[c].vals[r], mc = isMC(x), g = game();
   let h = null;
   g.hist.forEach(e => { if (e[0] === c && (e[5] === r || (e[5] === undefined && e[1] === p))) h = e; });
   const sol = mc ? LETTERS[x.ok] + ': ' + x.opts[x.ok] : (x.a || '(keine Lösung eingetragen)');
@@ -1093,12 +1098,14 @@ function startEdit() {
   S.draft = clone(board());
   S.draft.cats.forEach(c => c.qs.forEach(x => { while (x.opts.length < 4) x.opts.push(''); x.opts.length = 4; }));
 }
-function parseValues(s) {
-  const v = String(s).split(/[,;\s]+/).map(Number).filter(n => Number.isFinite(n) && n > 0 && n < 100000).map(Math.round);
+function parseValues(s, n) {
+  const v = String(s).split(/[,;\s]+/).map(Number).filter(x => Number.isFinite(x) && x > 0 && x < 100000).map(Math.round);
+  if (n) return v.length === n ? v : null;
   return v.length >= 3 && v.length <= 6 ? v : null;
 }
 function fitRows(d) {
   d.cats.forEach(c => {
+    c.vals = d.values.slice();
     while (c.qs.length < d.values.length) c.qs.push(tq('', ''));
     c.qs.length = d.values.length;
   });
@@ -1254,21 +1261,28 @@ function viewEditor() {
   const vals = el('input', { id: 'ed-vals', value: d.values.join(', '), onchange: e => {
     const v = parseValues(e.target.value);
     if (!v) { setNote('Gib 3 bis 6 Punktwerte an, zum Beispiel 100, 200, 300.'); e.target.value = d.values.join(', '); return; }
-    d.values = v; fitRows(d); render();
+    d.values = v; fitRows(d); setNote('Alle Themen haben jetzt diese Punktwerte. Du kannst sie unten pro Thema ändern.'); render();
   } });
   const cats = d.cats.map((c, ci) => el('div', { class: 'panel cated' },
     el('div', { class: 'row' },
       el('div', { class: 'field', style: 'flex:1 1 200px' }, el('label', { for: 'cn-' + ci, text: 'Thema ' + (ci + 1) }),
         el('input', { id: 'cn-' + ci, value: c.name, maxlength: '24', oninput: e => { c.name = e.target.value; } })),
       d.cats.length > 1 ? el('button', { type: 'button', class: 'btn danger', text: 'Thema löschen', onclick: () => { d.cats.splice(ci, 1); render(); } }) : null),
-    d.values.map((v, r) => qEditor(c.qs[r], ci, r, v))));
+    el('div', { class: 'field' },
+      el('label', { for: 'cv-' + ci, text: 'Punkte für dieses Thema (' + d.values.length + ' Werte, z. B. 500, 500, 500, 500, 500)' }),
+      el('input', { id: 'cv-' + ci, value: c.vals.join(', '), onchange: e => {
+        const v = parseValues(e.target.value, d.values.length);
+        if (!v) { setNote('Gib genau ' + d.values.length + ' Punktwerte an, zum Beispiel ' + d.values.map(() => 500).join(', ') + '.'); e.target.value = c.vals.join(', '); return; }
+        c.vals = v; render();
+      } })),
+    d.values.map((v, r) => qEditor(c.qs[r], ci, r, c.vals[r]))));
   return el('div', { class: 'stack' },
     el('div', { class: 'panel row' },
       el('div', { class: 'field', style: 'flex:2 1 220px' }, el('label', { for: 'ed-title', text: 'Titel des Abends' }), title),
-      el('div', { class: 'field', style: 'flex:1 1 200px' }, el('label', { for: 'ed-vals', text: 'Punktwerte (3 bis 6)' }), vals)),
+      el('div', { class: 'field', style: 'flex:1 1 200px' }, el('label', { for: 'ed-vals', text: 'Punktwerte für alle Themen (3 bis 6)' }), vals)),
     cats,
     el('div', { class: 'row' },
-      d.cats.length < 6 ? el('button', { type: 'button', class: 'btn ghost', text: 'Thema hinzufügen', onclick: () => { d.cats.push({ name: '', qs: d.values.map(() => (tq('', ''))) }); render(); } }) : null,
+      d.cats.length < 6 ? el('button', { type: 'button', class: 'btn ghost', text: 'Thema hinzufügen', onclick: () => { d.cats.push({ name: '', vals: d.values.slice(), qs: d.values.map(() => (tq('', ''))) }); render(); } }) : null,
       el('button', { type: 'button', class: 'btn', text: 'Speichern', onclick: saveEdit })));
 }
 
@@ -1279,7 +1293,7 @@ function saveEdit() {
     c.name = c.name.trim() || 'Thema ' + (ci + 1);
     c.qs.forEach((x, r) => {
       x.q = x.q.trim(); x.a = x.a.trim();
-      const label = c.name + ' für ' + d.values[r];
+      const label = c.name + ' für ' + c.vals[r];
       if (!hasContent(x)) { x.type = 'text'; x.opts = []; x.ok = 0; x.a = ''; return; }
       if (x.type === 'mc') {
         const opts = []; let ok = -1;
