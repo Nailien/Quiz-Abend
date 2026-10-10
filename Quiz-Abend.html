@@ -175,6 +175,15 @@ input[type=file]::file-selector-button{font:700 13px var(--body);padding:6px 12p
 .vteam{display:flex;align-items:center;gap:8px;margin-top:6px}
 .vrow{display:flex;flex-wrap:wrap;align-items:center;justify-content:flex-start;gap:8px 14px;padding:6px 0}.vname{min-width:70px}
 .vname{font-weight:800;overflow-wrap:anywhere}
+.verdict{border-top:0;padding-top:0}
+.wholine{margin:0;text-align:center;font-weight:800;font-size:18px}
+.vbtns{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.vbtn{font:900 clamp(20px,4.5vw,30px)/1.1 var(--body);padding:clamp(18px,4vw,28px) 10px;border-radius:14px;border:3px solid;cursor:pointer;color:#fff}
+.vbtn.wide{grid-column:1/-1}
+.vgood{background:#0f8a55;border-color:var(--good)}
+.vbad{background:#b8283a;border-color:#ff6b7d}
+.vbtn:hover{filter:brightness(1.15)}
+.linkbtn{background:none;border:0;color:var(--muted,#b8a9e8);text-decoration:underline;cursor:pointer;font:inherit;font-size:14px;justify-self:center}
 </style>
 </head><body><div id="app"></div>
 <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
@@ -185,7 +194,7 @@ const ADMIN_SALT = 'quizabend-v1', ADMIN_ITER = 150000, ADMIN_HASH = '8985912627
 const PEER_PREFIX = 'qabend-nw-';
 const LSKEY = 'quizabend.sa.v1', SSKEY = 'quizabend.sa.admin', NAMEKEY = 'quizabend.sa.name';
 const LETTERS = 'ABCD';
-const VERSION = 'Version 7';
+const VERSION = 'Version 8';
 
 const lsx = {
   get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
@@ -290,7 +299,7 @@ function normBoard(b) {
   });
   return b;
 }
-const emptyGame = () => ({ used: {}, scores: {}, cur: null, team: {}, tn: ['Team 1', 'Team 2'], turn: 0, hist: [], showResult: false });
+const emptyGame = () => ({ used: {}, scores: {}, cur: null, team: {}, tn: ['Team 1', 'Team 2'], turn: 0, tc: [0, 0], hist: [], showResult: false });
 const hasContent = x => !!(x && (String(x.q || '').trim() || x.img || x.au));
 const isMC = x => !!(x && x.type === 'mc' && Array.isArray(x.opts) && x.opts.filter(Boolean).length >= 2 && x.ok >= 0 && x.ok < x.opts.length);
 
@@ -476,8 +485,21 @@ function answer(name, correct) {
   if (!g.cur || isDone(g.cur)) return;
   const p = board().values[g.cur.r];
   if (correct) g.scores[name] = (g.scores[name] || 0) + p;
+  g.tc = Array.isArray(g.tc) ? g.tc : [0, 0]; g.tc[g.cur.team] = (g.tc[g.cur.team] || 0) + 1;
   g.cur.done = true; g.cur.ok = name; g.cur.res = correct ? 1 : 0;
   g.hist.push([g.cur.c, p, g.cur.team, name, correct ? 1 : 0, g.cur.r]);
+  commit();
+}
+/* Wer im Team am Zug antwortet: die Spieler des Teams wechseln sich automatisch ab */
+function answerer(g) {
+  const t = g.cur.team, ms = Object.keys(g.scores).filter(n => g.team[n] === t);
+  if (!ms.length) return '';
+  return ms[(((g.tc && g.tc[t]) || 0) + (g.cur.sk || 0)) % ms.length];
+}
+function otherPlayer() {
+  const g = game();
+  if (!g.cur || isDone(g.cur)) return;
+  g.cur.sk = (g.cur.sk || 0) + 1;
   commit();
 }
 function cancelQ() {
@@ -501,7 +523,7 @@ function toggleResult() { game().showResult = !game().showResult; commit(); }
 function resetGame() {
   const g = game();
   for (const n of Object.keys(g.scores)) g.scores[n] = 0;
-  g.used = {}; g.cur = null; g.hist = []; g.showResult = false; g.turn = 0;
+  g.used = {}; g.cur = null; g.hist = []; g.showResult = false; g.turn = 0; g.tc = [0, 0];
   S.confirmReset = false;
   commit();
 }
@@ -993,26 +1015,25 @@ function liveBanner() {
   return el('p', { class: 'banner', text: msg });
 }
 
-/* Richtig/Falsch: direkt unter der Lösung, pro Spieler (das Team am Zug zuerst) */
+/* Richtig/Falsch: grosse Knöpfe unten bei der Frage. Das Team am Zug ist fest (Team 1, Team 2, Team 1 …),
+   die Spieler des Teams wechseln sich automatisch ab. */
 function verdictBox(x, mc) {
-  const g = game(), cur = g.cur, p = board().values[cur.r], names = Object.keys(g.scores);
+  const g = game(), cur = g.cur, p = board().values[cur.r], t = cur.team, who = answerer(g);
   const box = el('div', { class: 'verdict stack' },
-    el('span', { class: 'qlabel', text: 'Wer hat geantwortet? Richtig oder falsch:' }));
+    el('p', { class: 'wholine' }, el('span', { class: 'tbadge t' + (t + 1), text: String(g.tn[t]) }),
+      el('span', { text: who ? ' ' + who + ' antwortet' : ' hat noch keinen Spieler' })));
+  if (!who) { box.append(el('p', { class: 'muted', text: 'Stelle einen Spieler in dieses Team (rechts bei „Team wechseln“), damit du werten kannst.' })); return box; }
+  const row = el('div', { class: 'vbtns' });
+  if (mc && cur.pick >= 0) {
+    const good = cur.pick === x.ok;
+    row.append(el('button', { type: 'button', class: 'vbtn ' + (good ? 'vgood' : 'vbad') + ' wide', text: LETTERS[cur.pick] + ' werten: ' + (good ? '✓ Richtig +' + p : '✗ Falsch 0'), onclick: () => answer(who, good) }));
+  } else {
+    row.append(el('button', { type: 'button', class: 'vbtn vgood', text: '✓ Richtig +' + p, onclick: () => answer(who, true) }),
+      el('button', { type: 'button', class: 'vbtn vbad', text: '✗ Falsch 0', onclick: () => answer(who, false) }));
+  }
+  box.append(row);
   if (mc && cur.pick < 0) box.append(el('p', { class: 'muted', text: 'Tipp: Klicke oben die genannte Antwort an, dann wird automatisch gewertet.' }));
-  let any = false;
-  [cur.team, 1 - cur.team].forEach(t => {
-    const ms = names.filter(n => g.team[n] === t);
-    if (!ms.length) return;
-    any = true;
-    box.append(el('div', { class: 'vteam' }, el('span', { class: 'tbadge t' + (t + 1), text: String(g.tn[t]) }), t === cur.team ? el('span', { class: 'muted', text: ' ist dran' }) : null));
-    ms.forEach(n => {
-      const acts = (mc && cur.pick >= 0)
-        ? [mini(LETTERS[cur.pick] + ' werten: ' + (cur.pick === x.ok ? '✓ richtig +' + p : '✗ falsch 0'), () => answer(n, cur.pick === x.ok), cur.pick === x.ok ? 'good' : 'bad')]
-        : [mini('✓ Richtig +' + p, () => answer(n, true), 'good'), mini('✗ Falsch 0', () => answer(n, false), 'bad')];
-      box.append(el('div', { class: 'vrow' }, el('span', { class: 'vname', text: n }), el('div', { class: 'pact' }, acts)));
-    });
-  });
-  if (!any) box.append(el('p', { class: 'muted', text: 'Noch kein Spieler im Spiel.' }));
+  if (Object.keys(g.scores).filter(n => g.team[n] === t).length > 1) box.append(el('button', { type: 'button', class: 'linkbtn', text: 'Anderer Spieler antwortet', onclick: otherPlayer }));
   return box;
 }
 
@@ -1050,9 +1071,10 @@ function viewAdminGame() {
       el('div', { class: 'panel stack solution' + (done ? ' shown' : '') },
         el('span', { class: 'qlabel', text: done ? 'Lösung (alle sehen sie jetzt)' : 'Lösung (nur du siehst sie)' }),
         el('p', { class: 'solutiontext', text: sol }),
-        done ? null : verdictBox(x, mc)),
+        null),
       done ? el('button', { class: 'btn bigbtn', type: 'button', text: 'Weiter zum Brett', onclick: closeQ })
-        : el('button', { class: 'btn ghost bigbtn', type: 'button', text: '\u2190 Zurück zum Brett (andere Frage wählen)', onclick: cancelQ }));
+        : el('div', { class: 'stack' }, verdictBox(x, mc),
+            el('button', { class: 'btn ghost bigbtn', type: 'button', text: '\u2190 Zurück zum Brett (andere Frage wählen)', onclick: cancelQ })));
   } else if (S.review && board().cats[S.review.c] && hasContent(board().cats[S.review.c].qs[S.review.r])) {
     main = reviewView(S.review.c, S.review.r);
   } else {
