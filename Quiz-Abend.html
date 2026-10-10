@@ -169,6 +169,12 @@ input[type=file]::file-selector-button{font:700 13px var(--body);padding:6px 12p
 .sndrow .field{flex:1 1 220px}
 .sndrow .row{flex:1 1 100%}
 .sndprev{max-width:100%;height:40px}
+.tile.used.look{color:rgba(255,255,255,.3);text-shadow:none;cursor:pointer;border-color:rgba(255,255,255,.08)}
+.board.admin .tile.used.look:hover{color:rgba(255,255,255,.6);filter:brightness(1.3)}
+.verdict{margin-top:6px;padding-top:12px;border-top:1px solid var(--panel-line)}
+.vteam{display:flex;align-items:center;gap:8px;margin-top:6px}
+.vrow{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px;padding:6px 0}
+.vname{font-weight:800;overflow-wrap:anywhere}
 </style>
 </head><body><div id="app"></div>
 <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
@@ -179,7 +185,7 @@ const ADMIN_SALT = 'quizabend-v1', ADMIN_ITER = 150000, ADMIN_HASH = '8985912627
 const PEER_PREFIX = 'qabend-nw-';
 const LSKEY = 'quizabend.sa.v1', SSKEY = 'quizabend.sa.admin', NAMEKEY = 'quizabend.sa.name';
 const LETTERS = 'ABCD';
-const VERSION = 'Version 3';
+const VERSION = 'Version 4';
 
 const lsx = {
   get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
@@ -373,7 +379,7 @@ document.addEventListener('visibilitychange', () => { if (document.visibilitySta
 
 /* ---------- Zustand der Seite ---------- */
 const S = {
-  mode: 'login', tab: 'game', draft: null, preview: false,
+  mode: 'login', tab: 'game', draft: null, preview: false, review: null,
   peer: null, conns: new Map(), live: 'off', netErr: '', hb: null,
   conn: null, pstate: null, imgs: {}, me: '', joinCode: '', lastState: 0, lastJson: '', stale: false, rt: null, joinT: null, staleT: null,
   confirmReset: false, confirmDel: '', busy: false, importData: null,
@@ -455,6 +461,7 @@ function openTile(c, r) {
   if (g.cur || g.used[c + '-' + r]) return;
   const x = board().cats[c] && board().cats[c].qs[r];
   if (!hasContent(x)) return;
+  S.review = null;
   g.cur = { c, r, team: g.turn === 1 ? 1 : 0, pick: -1, ok: '', res: -1, done: false, ap: 0 };
   commit();
 }
@@ -470,7 +477,7 @@ function answer(name, correct) {
   const p = board().values[g.cur.r];
   if (correct) g.scores[name] = (g.scores[name] || 0) + p;
   g.cur.done = true; g.cur.ok = name; g.cur.res = correct ? 1 : 0;
-  g.hist.push([g.cur.c, p, g.cur.team, name, correct ? 1 : 0]);
+  g.hist.push([g.cur.c, p, g.cur.team, name, correct ? 1 : 0, g.cur.r]);
   commit();
 }
 function closeQ() {
@@ -705,7 +712,7 @@ function logoutAdmin() {
   stopRec(); stopAudio();
   stopNet(true);
   ssx.del(SSKEY);
-  S.mode = 'login'; S.preview = false;
+  S.mode = 'login'; S.preview = false; S.review = null;
   render();
 }
 /* ---------- Ansichten: gemeinsam ---------- */
@@ -769,21 +776,21 @@ function viewJoin() {
 }
 
 /* ---------- Brett, Frage, Teams ---------- */
-function boardEl(st, mode, onPick) {
+function boardEl(st, mode, onPick, onUsed) {
   const b = el('div', { class: 'board ' + mode, style: '--n:' + st.cats.length });
   st.cats.forEach(c => b.append(el('div', { class: 'cat', text: c.n })));
   st.vals.forEach((v, r) => st.cats.forEach((c, ci) => {
     const t = c.t[r];
-    const live = t === 1 && onPick;
+    const live = t === 1 && onPick, look = t === 2 && onUsed;
     b.append(el('button', {
       type: 'button',
-      class: 'tile ' + (t === 1 ? 'open' : t === 2 ? 'used' : 'none'),
-      disabled: !live,
-      'aria-label': t === 1 ? c.n + ' für ' + v + ' Punkte' : null,
-      'aria-hidden': t === 1 ? null : 'true',
-      tabindex: live ? null : '-1',
-      text: t === 1 ? String(v) : '',
-      onclick: live ? () => onPick(ci, r) : null
+      class: 'tile ' + (t === 1 ? 'open' : t === 2 ? 'used' : 'none') + (look ? ' look' : ''),
+      disabled: !(live || look),
+      'aria-label': t === 1 ? c.n + ' für ' + v + ' Punkte' : look ? c.n + ' für ' + v + ' Punkte ansehen (schon gespielt)' : null,
+      'aria-hidden': (t === 1 || look) ? null : 'true',
+      tabindex: (live || look) ? null : '-1',
+      text: (t === 1 || look) ? String(v) : '',
+      onclick: live ? () => onPick(ci, r) : look ? () => onUsed(ci, r) : null
     }));
   }));
   return b;
@@ -829,16 +836,7 @@ function playerRow(n, st, admin, t) {
     el('span', { class: 'pname' }, n, n === S.me && !admin ? el('span', { class: 'muted', text: ' (du)' }) : null),
     el('span', { class: 'pscore', text: String(st.sc[n]) }));
   if (!admin) return el('div', { class: 'prow' }, head);
-  const g = game(), cur = g.cur && !isDone(g.cur) ? g.cur : null, acts = [];
-  if (cur) {
-    const x = board().cats[cur.c].qs[cur.r], p = board().values[cur.r];
-    if (isMC(x) && cur.pick >= 0) {
-      const good = cur.pick === x.ok;
-      acts.push(mini(LETTERS[cur.pick] + ' werten: ' + (good ? '✓ richtig +' + p : '✗ falsch 0'), () => answer(n, good), good ? 'good' : 'bad'));
-    } else {
-      acts.push(mini('✓ Richtig +' + p, () => answer(n, true), 'good'), mini('✗ Falsch 0', () => answer(n, false), 'bad'));
-    }
-  }
+  const acts = [];
   acts.push(mini('+100', () => adjust(n, 100)), mini('−100', () => adjust(n, -100)), mini('Team wechseln', () => setTeam(n, 1 - t)));
   if (!onlineSet().has(n)) acts.push(mini('Entfernen', () => removePlayer(n)));
   return el('div', { class: 'prow' }, head, el('div', { class: 'pact' }, acts));
@@ -910,10 +908,10 @@ function audioFor(key) {
 }
 function currentAudioKey() {
   if (S.mode === 'admin') {
-    const g = game();
-    if (!g.cur) return '';
-    const x = board().cats[g.cur.c] && board().cats[g.cur.c].qs[g.cur.r];
-    return x && x.au ? auKey(g.cur.c, g.cur.r) : '';
+    const g = game(), cu = g.cur || S.review;
+    if (!cu) return '';
+    const x = board().cats[cu.c] && board().cats[cu.c].qs[cu.r];
+    return x && x.au ? auKey(cu.c, cu.r) : '';
   }
   return S.pstate && S.pstate.q ? S.pstate.q.au || '' : '';
 }
@@ -989,6 +987,43 @@ function liveBanner() {
   return el('p', { class: 'banner', text: msg });
 }
 
+/* Richtig/Falsch: direkt unter der Lösung, pro Spieler (das Team am Zug zuerst) */
+function verdictBox(x, mc) {
+  const g = game(), cur = g.cur, p = board().values[cur.r], names = Object.keys(g.scores);
+  const box = el('div', { class: 'verdict stack' },
+    el('span', { class: 'qlabel', text: 'Wer hat geantwortet? Richtig oder falsch:' }));
+  if (mc && cur.pick < 0) box.append(el('p', { class: 'muted', text: 'Tipp: Klicke oben die genannte Antwort an, dann wird automatisch gewertet.' }));
+  let any = false;
+  [cur.team, 1 - cur.team].forEach(t => {
+    const ms = names.filter(n => g.team[n] === t);
+    if (!ms.length) return;
+    any = true;
+    box.append(el('div', { class: 'vteam' }, el('span', { class: 'tbadge t' + (t + 1), text: String(g.tn[t]) }), t === cur.team ? el('span', { class: 'muted', text: ' ist dran' }) : null));
+    ms.forEach(n => {
+      const acts = (mc && cur.pick >= 0)
+        ? [mini(LETTERS[cur.pick] + ' werten: ' + (cur.pick === x.ok ? '✓ richtig +' + p : '✗ falsch 0'), () => answer(n, cur.pick === x.ok), cur.pick === x.ok ? 'good' : 'bad')]
+        : [mini('✓ Richtig +' + p, () => answer(n, true), 'good'), mini('✗ Falsch 0', () => answer(n, false), 'bad')];
+      box.append(el('div', { class: 'vrow' }, el('span', { class: 'vname', text: n }), el('div', { class: 'pact' }, acts)));
+    });
+  });
+  if (!any) box.append(el('p', { class: 'muted', text: 'Noch kein Spieler im Spiel.' }));
+  return box;
+}
+
+/* Schon gespielte Frage ansehen: nur Ansicht, nichts kann geändert werden */
+function reviewView(c, r) {
+  const b = board(), x = b.cats[c].qs[r], p = b.values[r], mc = isMC(x), g = game();
+  let h = null;
+  g.hist.forEach(e => { if (e[0] === c && (e[5] === r || (e[5] === undefined && e[1] === p))) h = e; });
+  const sol = mc ? LETTERS[x.ok] + ': ' + x.opts[x.ok] : (x.a || '(keine Lösung eingetragen)');
+  const q = { cat: b.cats[c].name, p, t: String(x.q), im: x.img ? imgKey(c, r) : '', au: x.au ? auKey(c, r) : '', o: mc ? x.opts.slice(0, 4) : null,
+    pk: -1, d: h ? 1 : 0, w: h ? h[3] : '', ok: h ? h[4] : 0, ca: mc ? x.ok : -1 };
+  return el('div', { class: 'stack' },
+    el('p', { class: 'turnline', text: 'Nur Ansicht: Diese Frage wurde schon gespielt.' }),
+    qcard(q, x.img, sol, 'Lösung', mc ? optionsEl({ ...q, d: 1 }, null) : null, q.au ? audioControls(q.au, false) : null),
+    el('button', { class: 'btn bigbtn', type: 'button', text: 'Zurück zum Brett', onclick: () => { S.review = null; render(); } }));
+}
+
 function viewAdminGame() {
   const st = publicState(), g = game(), it = cq();
   const url = location.origin + location.pathname + '?c=' + encodeURIComponent(it.code);
@@ -1009,15 +1044,16 @@ function viewAdminGame() {
       el('div', { class: 'panel stack solution' + (done ? ' shown' : '') },
         el('span', { class: 'qlabel', text: done ? 'Lösung (alle sehen sie jetzt)' : 'Lösung (nur du siehst sie)' }),
         el('p', { class: 'solutiontext', text: sol }),
-        done ? null : el('p', { class: 'muted', text: mc
-          ? 'Klicke oben die Antwort an, die das Team genannt hat. Dann drückst du bei dem Spieler, der geantwortet hat, auf „werten“. Alle sehen danach die Lösung.'
-          : 'Drücke bei dem Spieler, der geantwortet hat, Richtig oder Falsch. Danach sehen alle die Lösung und die Punkte werden eingetragen.' })),
+        done ? null : verdictBox(x, mc)),
       done ? el('button', { class: 'btn bigbtn', type: 'button', text: 'Weiter zum Brett', onclick: closeQ }) : null);
+  } else if (S.review && board().cats[S.review.c] && hasContent(board().cats[S.review.c].qs[S.review.r])) {
+    main = reviewView(S.review.c, S.review.r);
   } else {
+    S.review = null;
     const open = st.cats.some(c => c.t.includes(1));
     main = el('div', { class: 'stack' },
       el('p', { class: 'turnline', text: !open ? 'Alle Felder gespielt' : g.tn[g.turn === 1 ? 1 : 0] + ' wählt ein Feld' }),
-      boardEl(st, 'admin', (c, r) => openTile(c, r)),
+      boardEl(st, 'admin', (c, r) => openTile(c, r), (c, r) => { S.review = { c, r }; render(); }),
       (g.showResult || !open) ? resultsPanel(st) : null);
   }
   return el('div', { class: 'layout admin' }, el('div', { class: 'stack' }, bar, main), teamCards(st, true));
@@ -1257,7 +1293,7 @@ async function switchQuiz(id) {
   DB.active = id;
   sanitizeGame();
   flush();
-  S.preview = false;
+  S.preview = false; S.review = null;
   render();
   await startHost(700);
   S.busy = false;
