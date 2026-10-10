@@ -162,6 +162,13 @@ input[type=file]{padding:9px;font-size:14px}
 .results td .tbadge{display:inline-block;margin-top:4px}
 .cellname{display:block;overflow-wrap:break-word;hyphens:auto}
 input[type=file]::file-selector-button{font:700 13px var(--body);padding:6px 12px;border-radius:8px;border:0;background:var(--accent);color:var(--accent-ink);margin-right:10px;cursor:pointer}
+/* Sound */
+.audiobar{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;width:100%}
+.audiobtn{font-size:18px;padding:14px 24px}
+.sndrow{display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap}
+.sndrow .field{flex:1 1 220px}
+.sndrow .row{flex:1 1 100%}
+.sndprev{max-width:100%;height:40px}
 </style>
 </head><body><div id="app"></div>
 <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
@@ -172,6 +179,7 @@ const ADMIN_SALT = 'quizabend-v1', ADMIN_ITER = 150000, ADMIN_HASH = '8985912627
 const PEER_PREFIX = 'qabend-nw-';
 const LSKEY = 'quizabend.sa.v1', SSKEY = 'quizabend.sa.admin', NAMEKEY = 'quizabend.sa.name';
 const LETTERS = 'ABCD';
+const VERSION = 'Version 3';
 
 const lsx = {
   get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
@@ -226,8 +234,8 @@ async function isAdminCode(code) {
 }
 
 /* ---------- Fragen ---------- */
-const tq = (q, a) => ({ q, a, type: 'text', opts: ['', '', '', ''], ok: 0, img: '', iv: 0 });
-const mq = (q, opts, ok) => ({ q, a: '', type: 'mc', opts, ok, img: '', iv: 0 });
+const tq = (q, a) => ({ q, a, type: 'text', opts: ['', '', '', ''], ok: 0, img: '', iv: 0, au: '', av: 0 });
+const mq = (q, opts, ok) => ({ q, a: '', type: 'mc', opts, ok, img: '', iv: 0, au: '', av: 0 });
 function defaultBoard() {
   return {
     title: 'Quiz-Abend',
@@ -270,13 +278,14 @@ function normBoard(b) {
       x = x || {};
       return { q: String(x.q || ''), a: String(x.a || ''), type: x.type === 'mc' ? 'mc' : 'text',
         opts: Array.isArray(x.opts) ? x.opts.map(String) : [], ok: Number.isInteger(x.ok) ? x.ok : 0,
-        img: typeof x.img === 'string' && x.img.startsWith('data:image/') ? x.img : '', iv: Number(x.iv) || 0 };
+        img: typeof x.img === 'string' && x.img.startsWith('data:image/') ? x.img : '', iv: Number(x.iv) || 0,
+        au: typeof x.au === 'string' && x.au.startsWith('data:audio/') ? x.au : '', av: Number(x.av) || 0 };
     });
   });
   return b;
 }
 const emptyGame = () => ({ used: {}, scores: {}, cur: null, team: {}, tn: ['Team 1', 'Team 2'], turn: 0, hist: [], showResult: false });
-const hasContent = x => !!(x && (String(x.q || '').trim() || x.img));
+const hasContent = x => !!(x && (String(x.q || '').trim() || x.img || x.au));
 const isMC = x => !!(x && x.type === 'mc' && Array.isArray(x.opts) && x.opts.filter(Boolean).length >= 2 && x.ok >= 0 && x.ok < x.opts.length);
 
 /* ---------- Speicher im Browser ---------- */
@@ -301,25 +310,74 @@ function fixDB(d) {
   if (!d.items.some(it => it.id === d.active)) d.active = d.items[0].id;
   return d;
 }
-let DB = (() => { try { const d = fixDB(JSON.parse(lsx.get(LSKEY))); if (d) return d; } catch (e) { /* neu */ } return freshDB(); })();
+let DB = null;
+const IDB = {
+  db: null,
+  open() {
+    return new Promise(res => {
+      try {
+        const r = indexedDB.open('quizabend', 1);
+        r.onupgradeneeded = () => { r.result.createObjectStore('kv'); };
+        r.onsuccess = () => { IDB.db = r.result; res(true); };
+        r.onerror = () => res(false);
+        r.onblocked = () => res(false);
+      } catch (e) { res(false); }
+    });
+  },
+  get(k) {
+    return new Promise(res => {
+      if (!IDB.db) return res(null);
+      try {
+        const q = IDB.db.transaction('kv', 'readonly').objectStore('kv').get(k);
+        q.onsuccess = () => res(q.result == null ? null : q.result);
+        q.onerror = () => res(null);
+      } catch (e) { res(null); }
+    });
+  },
+  set(k, v) {
+    return new Promise(res => {
+      if (!IDB.db) return res(false);
+      try {
+        const t = IDB.db.transaction('kv', 'readwrite');
+        t.objectStore('kv').put(v, k);
+        t.oncomplete = () => res(true);
+        t.onerror = () => res(false);
+        t.onabort = () => res(false);
+      } catch (e) { res(false); }
+    });
+  }
+};
+async function loadDB() {
+  await IDB.open();
+  let d = fixDB(await IDB.get('db'));
+  if (!d) { try { d = fixDB(JSON.parse(lsx.get(LSKEY))); } catch (e) { d = null; } }
+  DB = d || freshDB();
+}
 const cq = () => DB.items.find(i => i.id === DB.active);
 const board = () => DB.boards[DB.active];
 const game = () => DB.games[DB.active];
 
 let saveT = null;
+function lsFallback() {
+  if (!lsx.set(LSKEY, JSON.stringify(DB))) setNote('Speichern im Browser fehlgeschlagen. Der Speicher ist voll oder gesperrt. Speichere eine Sicherung.');
+}
 function flush() {
-  clearTimeout(saveT);
-  if (!lsx.set(LSKEY, JSON.stringify(DB))) setNote('Speichern im Browser fehlgeschlagen. Der Speicher ist voll. Entferne Bilder oder exportiere eine Sicherung.');
+  clearTimeout(saveT); saveT = null;
+  if (!DB) return;
+  if (!IDB.db) return lsFallback();
+  IDB.set('db', DB).then(ok => { if (!ok) lsFallback(); });
 }
 function persist() { clearTimeout(saveT); saveT = setTimeout(flush, 250); }
 window.addEventListener('pagehide', () => { if (saveT) flush(); });
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden' && saveT) flush(); });
 
 /* ---------- Zustand der Seite ---------- */
 const S = {
   mode: 'login', tab: 'game', draft: null, preview: false,
   peer: null, conns: new Map(), live: 'off', netErr: '', hb: null,
   conn: null, pstate: null, imgs: {}, me: '', joinCode: '', lastState: 0, lastJson: '', stale: false, rt: null, joinT: null, staleT: null,
-  confirmReset: false, confirmDel: '', busy: false, importData: null
+  confirmReset: false, confirmDel: '', busy: false, importData: null,
+  audio: {}, apSeen: {}, rec: null, pendingPlay: '', playNow: ''
 };
 let noteTimer = null;
 function setNote(msg) {
@@ -339,6 +397,14 @@ function showErr(msg) {
 /* ---------- Spiellogik (läuft nur beim Admin) ---------- */
 const isDone = cur => !!(cur && cur.done);
 const imgKey = (c, r) => { const x = board().cats[c].qs[r]; return c + '-' + r + '-' + (x.iv || 0); };
+
+const auKey = (c, r) => { const x = board().cats[c].qs[r]; return c + '-' + r + '-a' + (x.av || 0); };
+function curAudio() {
+  const g = game();
+  if (!g.cur) return null;
+  const x = board().cats[g.cur.c] && board().cats[g.cur.c].qs[g.cur.r];
+  return x && x.au ? { k: auKey(g.cur.c, g.cur.r), d: x.au } : null;
+}
 
 function sanitizeGame() {
   const b = board(), g = game();
@@ -362,7 +428,7 @@ function publicState() {
     if (x) {
       const done = isDone(g.cur), mc = isMC(x);
       q = { c: g.cur.c, r: g.cur.r, p: b.values[g.cur.r], cat: c.name, t: String(x.q).slice(0, 500),
-        im: x.img ? imgKey(g.cur.c, g.cur.r) : '', ty: mc ? 'mc' : 'text', o: mc ? x.opts.slice(0, 4) : null,
+        im: x.img ? imgKey(g.cur.c, g.cur.r) : '', au: x.au ? auKey(g.cur.c, g.cur.r) : '', ap: g.cur.ap || 0, ty: mc ? 'mc' : 'text', o: mc ? x.opts.slice(0, 4) : null,
         pk: mc && g.cur.pick >= 0 ? g.cur.pick : -1, d: done ? 1 : 0, w: g.cur.ok || '', ok: g.cur.res === 0 ? 0 : 1,
         a: done && !mc ? String(x.a).slice(0, 200) : null, ca: done && mc ? x.ok : -1 };
     }
@@ -389,7 +455,7 @@ function openTile(c, r) {
   if (g.cur || g.used[c + '-' + r]) return;
   const x = board().cats[c] && board().cats[c].qs[r];
   if (!hasContent(x)) return;
-  g.cur = { c, r, team: g.turn === 1 ? 1 : 0, pick: -1, ok: '', res: -1, done: false };
+  g.cur = { c, r, team: g.turn === 1 ? 1 : 0, pick: -1, ok: '', res: -1, done: false, ap: 0 };
   commit();
 }
 function setPick(i) {
@@ -497,7 +563,7 @@ function onHello(conn, m) {
   });
   const prev = S.conns.get(conn.peer);
   if (prev && prev !== conn) { try { prev.close(); } catch (e) { /* ignorieren */ } }
-  conn._name = name; conn._img = '';
+  conn._name = name; conn._img = ''; conn._au = '';
   S.conns.set(conn.peer, conn);
   const g = game(), has = k => Object.prototype.hasOwnProperty.call(g.scores, k);
   let changed = false;
@@ -512,12 +578,14 @@ function onHello(conn, m) {
 
 function broadcast() {
   if (S.mode !== 'admin' || !S.conns.size) return;
-  const st = publicState(), im = curImg();
+  const st = publicState(), im = curImg(), au = curAudio();
   S.conns.forEach(c => {
     if (!c.open) return;
     try {
       if (im && c._img !== im.k) { c.send({ t: 'img', k: im.k, d: im.d }); c._img = im.k; }
       c.send({ t: 'state', d: st });
+      /* Der Sound kommt nach dem Zustand, damit die Frage sofort sichtbar ist */
+      if (au && c._au !== au.k) { c.send({ t: 'au', k: au.k, d: au.d }); c._au = au.k; }
     } catch (e) { /* ignorieren */ }
   });
 }
@@ -525,7 +593,7 @@ function broadcast() {
 /* ---------- Spieler ---------- */
 function joinGame(code, name) {
   stopNet(false);
-  S.mode = 'join'; S.me = name; S.joinCode = code; S.joinTries = 0; S.pstate = null; S.lastJson = ''; S.stale = false; S.imgs = {};
+  S.mode = 'join'; S.me = name; S.joinCode = code; S.joinTries = 0; S.pstate = null; S.lastJson = ''; S.stale = false; S.imgs = {}; S.audio = {}; S.apSeen = {}; S.pendingPlay = ''; S.playNow = '';
   render();
   if (typeof Peer === 'undefined') return backToLogin('Die Live-Bibliothek konnte nicht geladen werden. Prüfe deine Internetverbindung und lade die Seite neu.');
   startPlayerPeer();
@@ -595,6 +663,12 @@ function onHostMsg(m) {
     if (S.mode === 'player') render();
     return;
   }
+  if (m.t === 'au' && typeof m.k === 'string' && typeof m.d === 'string' && m.d.startsWith('data:audio/')) {
+    S.audio[m.k] = m.d;
+    if (S.pendingPlay === m.k) { S.pendingPlay = ''; playAudio(m.k, m.d); }
+    if (S.mode === 'player') render();
+    return;
+  }
   if (m.t === 'state') acceptState(m.d);
 }
 
@@ -604,18 +678,31 @@ function acceptState(d) {
   S.lastState = Date.now();
   const j = JSON.stringify(d);
   if (j === S.lastJson && S.mode === 'player' && !S.stale) return;
+  /* Hat der Admin „Für alle abspielen“ gedrückt? Beim ersten Zustand einer Frage nur merken, nicht abspielen */
+  const q = d.q;
+  if (q && q.au) {
+    const prev = S.apSeen[q.au];
+    if (prev === undefined) S.apSeen[q.au] = q.ap || 0;
+    else if ((q.ap || 0) > prev) { S.apSeen[q.au] = q.ap; S.playNow = q.au; }
+  }
   S.lastJson = j; S.pstate = d; S.mode = 'player'; S.stale = false;
   render();
+  if (S.playNow) {
+    const k = S.playNow; S.playNow = '';
+    if (S.audio[k]) playAudio(k, S.audio[k]); else S.pendingPlay = k;
+  }
 }
 
 function backToLogin(msg) {
   stopNet(false);
+  stopAudio();
   S.mode = 'login'; S.pstate = null; S.preview = false;
   render();
   showErr(msg);
 }
 function logoutAdmin() {
   flush();
+  stopRec(); stopAudio();
   stopNet(true);
   ssx.del(SSKEY);
   S.mode = 'login'; S.preview = false;
@@ -670,9 +757,12 @@ function viewLogin() {
   field('Dein Name (für Spieler)', 'pname', name),
   err,
   el('button', { class: 'btn', type: 'submit', text: 'Los geht’s' }),
-  el('p', { class: 'muted small', text: 'Spieler geben den Spielcode ihres Admins ein. Der Admin nutzt seinen eigenen Code.' }));
+  el('p', { class: 'muted small', text: 'Spieler geben den Spielcode ihres Admins ein. Der Admin nutzt seinen eigenen Code.' }),
+  el('p', { class: 'muted small', id: 'ver', text: VERSION }));
   return shell('Quiz-Abend', null, form);
 }
+
+function viewBoot() { return shell('Quiz-Abend', null, el('p', { class: 'muted', text: 'Lade …' })); }
 
 function viewJoin() {
   return shell('Quiz-Abend', null, el('div', { class: 'panel login' }, el('p', { text: 'Verbinde mit dem Spiel …' })));
@@ -718,11 +808,12 @@ function optionsEl(q, onPick) {
   return wrap;
 }
 
-function qcard(q, imgSrc, answerText, answerNote, optsNode) {
+function qcard(q, imgSrc, answerText, answerNote, optsNode, audioNode) {
   return el('div', { class: 'qcard' },
     el('div', { class: 'qmeta', text: q.cat + ' für ' + q.p }),
     q.t ? el('p', { class: 'qtext', text: q.t }) : null,
     q.im ? (imgSrc ? el('img', { class: 'qimg', src: imgSrc, alt: 'Bild zur Frage' }) : el('p', { class: 'muted', text: 'Bild lädt …' })) : null,
+    audioNode || null,
     optsNode || null,
     resultBanner(q),
     answerText != null ? el('div', { class: 'qans pop' }, el('span', { class: 'qlabel', text: answerNote }), answerText) : null);
@@ -788,6 +879,62 @@ function resultsPanel(st) {
     h.length ? table : el('p', { class: 'muted', text: 'Noch keine Frage gespielt.' }));
 }
 
+/* ---------- Sound: ein gemeinsamer Player, damit er beim Neuzeichnen weiterläuft ---------- */
+const AU = { el: new Audio(), key: '', btn: null };
+AU.el.preload = 'auto';
+function syncAudioBtn() { if (AU.btn && AU.btn.isConnected) AU.btn.textContent = AU.el.paused ? '\u25B6 Sound abspielen' : '\u25A0 Stopp'; }
+['play', 'pause', 'ended'].forEach(ev => AU.el.addEventListener(ev, syncAudioBtn));
+function playAudio(key, src) {
+  if (!src) return;
+  if (AU.key !== key) { AU.el.src = src; AU.key = key; }
+  try { AU.el.currentTime = 0; } catch (e) { /* ignorieren */ }
+  const p = AU.el.play();
+  if (p && p.catch) p.catch(() => setNote('Der Browser hat das Abspielen blockiert. Tippe auf „Sound abspielen“.'));
+}
+function stopAudio() {
+  AU.el.pause(); AU.key = '';
+  AU.el.removeAttribute('src');
+  try { AU.el.load(); } catch (e) { /* ignorieren */ }
+}
+function toggleAudio(key, src) {
+  if (AU.key === key && !AU.el.paused) { AU.el.pause(); try { AU.el.currentTime = 0; } catch (e) { /* ignorieren */ } }
+  else playAudio(key, src);
+}
+function audioFor(key) {
+  if (S.mode === 'admin') {
+    const [c, r] = String(key).split('-').map(Number);
+    const x = board().cats[c] && board().cats[c].qs[r];
+    return x ? x.au : '';
+  }
+  return S.audio[key] || '';
+}
+function currentAudioKey() {
+  if (S.mode === 'admin') {
+    const g = game();
+    if (!g.cur) return '';
+    const x = board().cats[g.cur.c] && board().cats[g.cur.c].qs[g.cur.r];
+    return x && x.au ? auKey(g.cur.c, g.cur.r) : '';
+  }
+  return S.pstate && S.pstate.q ? S.pstate.q.au || '' : '';
+}
+function playForAll(key, src) {
+  const g = game();
+  if (!g.cur) return;
+  g.cur.ap = (g.cur.ap || 0) + 1;
+  playAudio(key, src);
+  commit();
+}
+function audioControls(key, admin) {
+  const src = audioFor(key);
+  const bar = el('div', { class: 'audiobar' });
+  if (!src) { bar.append(el('span', { class: 'muted', text: 'Sound lädt …' })); return bar; }
+  const btn = el('button', { type: 'button', class: 'btn audiobtn', text: (AU.key === key && !AU.el.paused) ? '\u25A0 Stopp' : '\u25B6 Sound abspielen', onclick: () => toggleAudio(key, src) });
+  AU.btn = btn;
+  bar.append(btn);
+  if (admin) bar.append(el('button', { type: 'button', class: 'btn ghost audiobtn', text: '\u25B6 Für alle abspielen', onclick: () => playForAll(key, src) }));
+  return bar;
+}
+
 /* Bild zu einem Schlüssel: Spieler bekommen es vom Admin, die Vorschau liest es direkt */
 function imgFor(key) {
   if (S.mode === 'admin') {
@@ -805,7 +952,7 @@ function viewPlayer(st, preview) {
   const open = st.cats.some(c => c.t.includes(1));
   let main;
   if (st.q) {
-    main = qcard(st.q, imgFor(st.q.im), st.q.a, 'Lösung', st.q.o ? optionsEl(st.q, null) : null);
+    main = qcard(st.q, imgFor(st.q.im), st.q.a, 'Lösung', st.q.o ? optionsEl(st.q, null) : null, st.q.au ? audioControls(st.q.au, false) : null);
   } else {
     const line = !open ? 'Alle Felder sind gespielt. Danke fürs Mitmachen!'
       : mine ? 'Euer Team ist dran: ' + tn[turnTeam]
@@ -858,7 +1005,7 @@ function viewAdminGame() {
     const x = board().cats[g.cur.c].qs[g.cur.r], done = isDone(g.cur), mc = isMC(x), q = st.q;
     const sol = mc ? LETTERS[x.ok] + ': ' + x.opts[x.ok] : (x.a || '(keine Lösung eingetragen)');
     main = el('div', { class: 'stack' },
-      qcard(q, x.img, null, '', mc ? optionsEl(q, setPick) : null),
+      qcard(q, x.img, null, '', mc ? optionsEl(q, setPick) : null, q.au ? audioControls(q.au, true) : null),
       el('div', { class: 'panel stack solution' + (done ? ' shown' : '') },
         el('span', { class: 'qlabel', text: done ? 'Lösung (alle sehen sie jetzt)' : 'Lösung (nur du siehst sie)' }),
         el('p', { class: 'solutiontext', text: sol }),
@@ -887,7 +1034,7 @@ function parseValues(s) {
 }
 function fitRows(d) {
   d.cats.forEach(c => {
-    while (c.qs.length < d.values.length) c.qs.push({ q: '', a: '', type: 'text', opts: ['', '', '', ''], ok: 0, img: '', iv: 0 });
+    while (c.qs.length < d.values.length) c.qs.push(tq('', ''));
     c.qs.length = d.values.length;
   });
 }
@@ -911,6 +1058,96 @@ function loadImage(file) {
     };
     fr.readAsDataURL(file);
   });
+}
+
+function blobToDataURL(blob) {
+  return new Promise((res, rej) => {
+    const fr = new FileReader();
+    fr.onerror = () => rej(new Error('read'));
+    fr.onload = () => res(String(fr.result));
+    fr.readAsDataURL(blob);
+  });
+}
+/* Wandelt jede Audiodatei in ein kleines Mono-WAV um (spielt auf allen Geräten, Länge begrenzt) */
+async function blobToWav(blob, maxSec) {
+  const buf = await blob.arrayBuffer();
+  const AC = window.AudioContext || window.webkitAudioContext;
+  if (!AC || !window.OfflineAudioContext) throw new Error('noaudio');
+  const ctx = new AC();
+  let audio;
+  try { audio = await new Promise((res, rej) => ctx.decodeAudioData(buf, res, rej)); }
+  finally { try { ctx.close(); } catch (e) { /* ignorieren */ } }
+  const rate = 16000, dur = Math.min(audio.duration, maxSec), len = Math.max(1, Math.ceil(dur * rate));
+  const off = new OfflineAudioContext(1, len, rate);
+  const src = off.createBufferSource();
+  src.buffer = audio; src.connect(off.destination); src.start();
+  const data = (await off.startRendering()).getChannelData(0);
+  const out = new ArrayBuffer(44 + data.length * 2), v = new DataView(out);
+  const w = (o, t) => { for (let i = 0; i < t.length; i++) v.setUint8(o + i, t.charCodeAt(i)); };
+  w(0, 'RIFF'); v.setUint32(4, 36 + data.length * 2, true); w(8, 'WAVE'); w(12, 'fmt ');
+  v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
+  v.setUint32(24, rate, true); v.setUint32(28, rate * 2, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true);
+  w(36, 'data'); v.setUint32(40, data.length * 2, true);
+  let o = 44;
+  for (let i = 0; i < data.length; i++) { const x = Math.max(-1, Math.min(1, data[i])); v.setInt16(o, x < 0 ? x * 0x8000 : x * 0x7FFF, true); o += 2; }
+  return { blob: new Blob([out], { type: 'audio/wav' }), cut: audio.duration > maxSec + 0.5 };
+}
+async function loadAudioFile(file) {
+  if (file.size <= 2.5 * 1024 * 1024 && /^audio\//.test(file.type)) return { url: await blobToDataURL(file), cut: false };
+  const r = await blobToWav(file, 30);
+  return { url: await blobToDataURL(r.blob), cut: r.cut };
+}
+const fmtSec = n => Math.floor(n / 60) + ':' + String(n % 60).padStart(2, '0');
+function stopRec() { if (S.rec) { try { S.rec.mr.stop(); } catch (e) { /* ignorieren */ } } }
+async function startRec(x, id) {
+  if (S.rec) return;
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || !window.MediaRecorder) return setNote('Aufnehmen geht in diesem Browser nicht. Lade stattdessen eine Audiodatei hoch.');
+  let stream;
+  try { stream = await navigator.mediaDevices.getUserMedia({ audio: true }); }
+  catch (e) { return setNote('Kein Zugriff auf das Mikrofon. Erlaube es in den Browser-Einstellungen für diese Seite.'); }
+  const mr = new MediaRecorder(stream), chunks = [];
+  const rec = { id, mr, t0: Date.now(), btn: null, timer: null };
+  S.rec = rec;
+  mr.ondataavailable = e => { if (e.data && e.data.size) chunks.push(e.data); };
+  mr.onstop = async () => {
+    clearInterval(rec.timer);
+    stream.getTracks().forEach(t => t.stop());
+    S.rec = null;
+    try {
+      const r = await blobToWav(new Blob(chunks, { type: mr.mimeType || 'audio/webm' }), 45);
+      x.au = await blobToDataURL(r.blob); x.av = Date.now();
+      render();
+      setNote('Aufnahme hinzugefügt. Denk ans Speichern.');
+    } catch (e) { render(); setNote('Die Aufnahme konnte nicht verarbeitet werden. Lade stattdessen eine Audiodatei hoch.'); }
+  };
+  mr.start();
+  rec.timer = setInterval(() => {
+    const sec = Math.floor((Date.now() - rec.t0) / 1000);
+    if (rec.btn && rec.btn.isConnected) rec.btn.textContent = '\u25A0 Stopp ' + fmtSec(sec);
+    if (sec >= 45) stopRec();
+  }, 250);
+  render();
+}
+function soundEditor(x, id) {
+  const file = el('input', { id: 'cs-' + id, type: 'file', accept: 'audio/*', 'aria-label': 'Sound hochladen', onchange: async e => {
+    const f = e.target.files && e.target.files[0];
+    if (!f) return;
+    setNote('Sound wird verarbeitet …');
+    try {
+      const r = await loadAudioFile(f);
+      x.au = r.url; x.av = Date.now();
+      render();
+      setNote(r.cut ? 'Der Sound war länger als 30 Sekunden und wurde gekürzt. Denk ans Speichern.' : 'Sound hinzugefügt. Denk ans Speichern.');
+    } catch (err) { setNote('Diese Audiodatei konnte nicht gelesen werden. Probiere MP3 oder WAV.'); }
+  } });
+  const recording = !!(S.rec && S.rec.id === id);
+  const recBtn = el('button', { type: 'button', class: 'mini ' + (recording ? 'bad' : ''), text: recording ? '\u25A0 Stopp' : '\u25CF Aufnehmen', onclick: () => (recording ? stopRec() : startRec(x, id)) });
+  if (recording) S.rec.btn = recBtn;
+  return el('div', { class: 'sndrow' },
+    x.au ? el('audio', { class: 'sndprev', controls: true, src: x.au }) : null,
+    x.au ? mini('Sound entfernen', () => { x.au = ''; x.av = 0; render(); }, 'bad') : null,
+    el('div', { class: 'field' }, el('label', { for: 'cs-' + id, text: x.au ? 'Sound ersetzen (Datei)' : 'Sound hinzufügen (Datei, optional)' }), file),
+    el('div', { class: 'row' }, recBtn, el('span', { class: 'hint', text: 'oder direkt mit dem Mikrofon aufnehmen (bis 45 Sekunden)' })));
 }
 
 function qEditor(x, ci, r, v) {
@@ -943,7 +1180,7 @@ function qEditor(x, ci, r, v) {
     el('div', { class: 'field' }, el('label', { for: 'cf-' + id, text: x.img ? 'Bild ersetzen' : 'Bild hinzufügen (optional)' }), file));
   return el('div', { class: 'qrow' },
     el('div', { class: 'qpts', text: String(v) }),
-    el('div', { class: 'stack' }, seg, q, ans, img));
+    el('div', { class: 'stack' }, seg, q, ans, img, soundEditor(x, id)));
 }
 
 function viewEditor() {
@@ -966,7 +1203,7 @@ function viewEditor() {
       el('div', { class: 'field', style: 'flex:1 1 200px' }, el('label', { for: 'ed-vals', text: 'Punktwerte (3 bis 6)' }), vals)),
     cats,
     el('div', { class: 'row' },
-      d.cats.length < 6 ? el('button', { type: 'button', class: 'btn ghost', text: 'Thema hinzufügen', onclick: () => { d.cats.push({ name: '', qs: d.values.map(() => ({ q: '', a: '', type: 'text', opts: ['', '', '', ''], ok: 0, img: '', iv: 0 })) }); render(); } }) : null,
+      d.cats.length < 6 ? el('button', { type: 'button', class: 'btn ghost', text: 'Thema hinzufügen', onclick: () => { d.cats.push({ name: '', qs: d.values.map(() => (tq('', ''))) }); render(); } }) : null,
       el('button', { type: 'button', class: 'btn', text: 'Speichern', onclick: saveEdit })));
 }
 
@@ -1153,7 +1390,7 @@ function viewSettings() {
       el('button', { class: 'btn danger', type: 'button', text: 'Jetzt ersetzen', onclick: applyImport }),
       el('button', { class: 'btn ghost', type: 'button', text: 'Abbrechen', onclick: () => { S.importData = null; render(); } })) : null);
   return el('div', { class: 'stack' }, form, reset, backup,
-    el('p', { class: 'muted small', text: 'Der Admin-Code steht (verschlüsselt) in der Datei dieser Seite. Um ihn zu ändern, braucht es eine neue Datei.' }));
+    el('p', { class: 'muted small', text: 'Der Admin-Code steht (verschlüsselt) in der Datei dieser Seite. Um ihn zu ändern, braucht es eine neue Datei. ' + VERSION + '.' }));
 }
 
 function viewAdmin() {
@@ -1167,7 +1404,7 @@ function viewAdmin() {
   const tabs = [['game', 'Spiel'], ['quiz', 'Quizze'], ['edit', 'Fragen'], ['set', 'Einstellungen']];
   const bar = el('div', { class: 'tabs', role: 'tablist' }, tabs.map(([k, label]) => el('button', {
     type: 'button', class: 'tab', role: 'tab', 'aria-selected': S.tab === k ? 'true' : 'false', text: label,
-    onclick: () => { if (k === 'edit' && S.tab !== 'edit') startEdit(); S.tab = k; S.confirmReset = false; S.confirmDel = ''; S.importData = null; render(); }
+    onclick: () => { if (S.tab === 'edit' && k !== 'edit') stopRec(); if (k === 'edit' && S.tab !== 'edit') startEdit(); S.tab = k; S.confirmReset = false; S.confirmDel = ''; S.importData = null; render(); }
   })));
   const body = S.tab === 'game' ? viewAdminGame() : S.tab === 'quiz' ? viewQuizzes() : S.tab === 'edit' ? viewEditor() : viewSettings();
   return shell(board().title,
@@ -1179,14 +1416,18 @@ function viewAdmin() {
 function render() {
   const app = $('#app');
   const active = document.activeElement && document.activeElement.id;
-  const view = { login: viewLogin, join: viewJoin, player: () => viewPlayer(S.pstate, false), admin: viewAdmin }[S.mode];
+  if (!currentAudioKey() && AU.key) stopAudio();
+  const view = { boot: viewBoot, login: viewLogin, join: viewJoin, player: () => viewPlayer(S.pstate, false), admin: viewAdmin }[S.mode];
   app.replaceChildren(view());
   if (active) { const n = document.getElementById(active); if (n && n.focus && S.mode !== 'player') n.focus(); }
 }
 /* Während du tippst (Fragen, Einstellungen), wird die Seite nicht von Beitritten neu gezeichnet */
 function refreshAdmin() { if (S.mode === 'admin' && (S.preview || S.tab === 'game' || S.tab === 'quiz')) render(); }
 
-(function boot() {
+(async function boot() {
+  S.mode = 'boot';
+  render();
+  await loadDB();
   S.mode = 'login';
   if (ssx.get(SSKEY) === '1') enterAdmin(); else render();
 })();
