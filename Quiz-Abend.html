@@ -173,7 +173,7 @@ input[type=file]::file-selector-button{font:700 13px var(--body);padding:6px 12p
 .board.admin .tile.used.look:hover{color:rgba(255,255,255,.6);filter:brightness(1.3)}
 .verdict{margin-top:6px;padding-top:12px;border-top:1px solid var(--panel-line)}
 .vteam{display:flex;align-items:center;gap:8px;margin-top:6px}
-.vrow{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px;padding:6px 0}
+.vrow{display:flex;flex-wrap:wrap;align-items:center;justify-content:flex-start;gap:8px 14px;padding:6px 0}.vname{min-width:70px}
 .vname{font-weight:800;overflow-wrap:anywhere}
 </style>
 </head><body><div id="app"></div>
@@ -185,7 +185,7 @@ const ADMIN_SALT = 'quizabend-v1', ADMIN_ITER = 150000, ADMIN_HASH = '8985912627
 const PEER_PREFIX = 'qabend-nw-';
 const LSKEY = 'quizabend.sa.v1', SSKEY = 'quizabend.sa.admin', NAMEKEY = 'quizabend.sa.name';
 const LETTERS = 'ABCD';
-const VERSION = 'Version 4';
+const VERSION = 'Version 5';
 
 const lsx = {
   get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
