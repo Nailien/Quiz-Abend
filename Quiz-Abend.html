@@ -130,7 +130,7 @@ input:focus-visible,textarea:focus-visible,button:focus-visible{outline:3px soli
 img{max-width:100%}
 input[type=radio]{width:auto;accent-color:var(--accent);flex:none;transform:scale(1.35);margin:0 4px}
 input[type=file]{padding:9px;font-size:14px}
-.qimg{max-width:100%;max-height:46vh;border-radius:12px;object-fit:contain;background:rgba(255,255,255,.08);border:2px solid var(--tile-rim)}
+.qimg{width:100%;max-width:100%;max-height:64vh;border-radius:12px;object-fit:contain;background:rgba(255,255,255,.08);border:2px solid var(--tile-rim)}
 .ol{flex:none;display:inline-grid;place-items:center;width:34px;height:34px;border-radius:8px;background:var(--accent);color:var(--accent-ink);font:900 20px/1 var(--num)}
 .opts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;width:100%}
 @media (max-width:560px){.opts{grid-template-columns:minmax(0,1fr)}}
@@ -185,7 +185,7 @@ const ADMIN_SALT = 'quizabend-v1', ADMIN_ITER = 150000, ADMIN_HASH = '8985912627
 const PEER_PREFIX = 'qabend-nw-';
 const LSKEY = 'quizabend.sa.v1', SSKEY = 'quizabend.sa.admin', NAMEKEY = 'quizabend.sa.name';
 const LETTERS = 'ABCD';
-const VERSION = 'Version 5';
+const VERSION = 'Version 7';
 
 const lsx = {
   get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
@@ -478,6 +478,12 @@ function answer(name, correct) {
   if (correct) g.scores[name] = (g.scores[name] || 0) + p;
   g.cur.done = true; g.cur.ok = name; g.cur.res = correct ? 1 : 0;
   g.hist.push([g.cur.c, p, g.cur.team, name, correct ? 1 : 0, g.cur.r]);
+  commit();
+}
+function cancelQ() {
+  const g = game();
+  if (!g.cur || isDone(g.cur)) return;
+  g.cur = null;
   commit();
 }
 function closeQ() {
@@ -1045,7 +1051,8 @@ function viewAdminGame() {
         el('span', { class: 'qlabel', text: done ? 'Lösung (alle sehen sie jetzt)' : 'Lösung (nur du siehst sie)' }),
         el('p', { class: 'solutiontext', text: sol }),
         done ? null : verdictBox(x, mc)),
-      done ? el('button', { class: 'btn bigbtn', type: 'button', text: 'Weiter zum Brett', onclick: closeQ }) : null);
+      done ? el('button', { class: 'btn bigbtn', type: 'button', text: 'Weiter zum Brett', onclick: closeQ })
+        : el('button', { class: 'btn ghost bigbtn', type: 'button', text: '\u2190 Zurück zum Brett (andere Frage wählen)', onclick: cancelQ }));
   } else if (S.review && board().cats[S.review.c] && hasContent(board().cats[S.review.c].qs[S.review.r])) {
     main = reviewView(S.review.c, S.review.r);
   } else {
@@ -1082,7 +1089,7 @@ function loadImage(file) {
       const im = new Image();
       im.onerror = () => rej(new Error('img'));
       im.onload = () => {
-        const max = 800, sc = Math.min(1, max / Math.max(im.naturalWidth, im.naturalHeight));
+        const max = 1100, sc = Math.min(1, max / Math.max(im.naturalWidth, im.naturalHeight));
         const w = Math.max(1, Math.round(im.naturalWidth * sc)), h = Math.max(1, Math.round(im.naturalHeight * sc));
         const cv = document.createElement('canvas');
         cv.width = w; cv.height = h;
