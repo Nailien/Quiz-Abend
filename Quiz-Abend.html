@@ -184,6 +184,7 @@ input[type=file]::file-selector-button{font:700 13px var(--body);padding:6px 12p
 .vbad{background:#b8283a;border-color:#ff6b7d}
 .vbtn:hover{filter:brightness(1.15)}
 .linkbtn{background:none;border:0;color:var(--muted,#b8a9e8);text-decoration:underline;cursor:pointer;font:inherit;font-size:14px;justify-self:center}
+.ansimg{max-height:50vh;margin-top:12px;border-color:var(--accent)}
 </style>
 </head><body><div id="app"></div>
 <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
@@ -194,7 +195,7 @@ const ADMIN_SALT = 'quizabend-v1', ADMIN_ITER = 150000, ADMIN_HASH = '8985912627
 const PEER_PREFIX = 'qabend-nw-';
 const LSKEY = 'quizabend.sa.v1', SSKEY = 'quizabend.sa.admin', NAMEKEY = 'quizabend.sa.name';
 const LETTERS = 'ABCD';
-const VERSION = 'Version 9';
+const VERSION = 'Version 10';
 
 const lsx = {
   get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
@@ -249,8 +250,8 @@ async function isAdminCode(code) {
 }
 
 /* ---------- Fragen ---------- */
-const tq = (q, a) => ({ q, a, type: 'text', opts: ['', '', '', ''], ok: 0, img: '', iv: 0, au: '', av: 0 });
-const mq = (q, opts, ok) => ({ q, a: '', type: 'mc', opts, ok, img: '', iv: 0, au: '', av: 0 });
+const tq = (q, a) => ({ q, a, type: 'text', opts: ['', '', '', ''], ok: 0, img: '', iv: 0, au: '', av: 0, ai: '', aiv: 0 });
+const mq = (q, opts, ok) => ({ q, a: '', type: 'mc', opts, ok, img: '', iv: 0, au: '', av: 0, ai: '', aiv: 0 });
 function defaultBoard() {
   return normBoard({
     title: 'Quiz-Abend',
@@ -297,7 +298,8 @@ function normBoard(b) {
       return { q: String(x.q || ''), a: String(x.a || ''), type: x.type === 'mc' ? 'mc' : 'text',
         opts: Array.isArray(x.opts) ? x.opts.map(String) : [], ok: Number.isInteger(x.ok) ? x.ok : 0,
         img: typeof x.img === 'string' && x.img.startsWith('data:image/') ? x.img : '', iv: Number(x.iv) || 0,
-        au: typeof x.au === 'string' && x.au.startsWith('data:audio/') ? x.au : '', av: Number(x.av) || 0 };
+        au: typeof x.au === 'string' && x.au.startsWith('data:audio/') ? x.au : '', av: Number(x.av) || 0,
+        ai: typeof x.ai === 'string' && x.ai.startsWith('data:image/') ? x.ai : '', aiv: Number(x.aiv) || 0 };
     });
   });
   return b;
@@ -416,7 +418,15 @@ function showErr(msg) {
 const isDone = cur => !!(cur && cur.done);
 const imgKey = (c, r) => { const x = board().cats[c].qs[r]; return c + '-' + r + '-' + (x.iv || 0); };
 
+const aiKey = (c, r) => { const x = board().cats[c].qs[r]; return c + '-' + r + '-s' + (x.aiv || 0); };
 const auKey = (c, r) => { const x = board().cats[c].qs[r]; return c + '-' + r + '-a' + (x.av || 0); };
+/* Bild zur Lösung: wird erst nach Richtig/Falsch an die Spieler geschickt */
+function curAnsImg() {
+  const g = game();
+  if (!g.cur || !isDone(g.cur)) return null;
+  const x = board().cats[g.cur.c] && board().cats[g.cur.c].qs[g.cur.r];
+  return x && x.ai ? { k: aiKey(g.cur.c, g.cur.r), d: x.ai } : null;
+}
 function curAudio() {
   const g = game();
   if (!g.cur) return null;
@@ -447,7 +457,7 @@ function publicState() {
     if (x) {
       const done = isDone(g.cur), mc = isMC(x);
       q = { c: g.cur.c, r: g.cur.r, p: c.vals[g.cur.r], cat: c.name, t: String(x.q).slice(0, 500),
-        im: x.img ? imgKey(g.cur.c, g.cur.r) : '', au: x.au ? auKey(g.cur.c, g.cur.r) : '', ap: g.cur.ap || 0, ty: mc ? 'mc' : 'text', o: mc ? x.opts.slice(0, 4) : null,
+        im: x.img ? imgKey(g.cur.c, g.cur.r) : '', au: x.au ? auKey(g.cur.c, g.cur.r) : '', ai: done && x.ai ? aiKey(g.cur.c, g.cur.r) : '', ap: g.cur.ap || 0, ty: mc ? 'mc' : 'text', o: mc ? x.opts.slice(0, 4) : null,
         pk: mc && g.cur.pick >= 0 ? g.cur.pick : -1, d: done ? 1 : 0, w: g.cur.ok || '', ok: g.cur.res === 0 ? 0 : 1,
         a: done && !mc ? String(x.a).slice(0, 200) : null, ca: done && mc ? x.ok : -1 };
     }
@@ -602,7 +612,7 @@ function onHello(conn, m) {
   });
   const prev = S.conns.get(conn.peer);
   if (prev && prev !== conn) { try { prev.close(); } catch (e) { /* ignorieren */ } }
-  conn._name = name; conn._img = ''; conn._au = '';
+  conn._name = name; conn._img = ''; conn._au = ''; conn._ai = '';
   S.conns.set(conn.peer, conn);
   const g = game(), has = k => Object.prototype.hasOwnProperty.call(g.scores, k);
   let changed = false;
@@ -617,11 +627,12 @@ function onHello(conn, m) {
 
 function broadcast() {
   if (S.mode !== 'admin' || !S.conns.size) return;
-  const st = publicState(), im = curImg(), au = curAudio();
+  const st = publicState(), im = curImg(), au = curAudio(), ai = curAnsImg();
   S.conns.forEach(c => {
     if (!c.open) return;
     try {
       if (im && c._img !== im.k) { c.send({ t: 'img', k: im.k, d: im.d }); c._img = im.k; }
+      if (ai && c._ai !== ai.k) { c.send({ t: 'img', k: ai.k, d: ai.d }); c._ai = ai.k; }
       c.send({ t: 'state', d: st });
       /* Der Sound kommt nach dem Zustand, damit die Frage sofort sichtbar ist */
       if (au && c._au !== au.k) { c.send({ t: 'au', k: au.k, d: au.d }); c._au = au.k; }
@@ -848,7 +859,7 @@ function optionsEl(q, onPick) {
   return wrap;
 }
 
-function qcard(q, imgSrc, answerText, answerNote, optsNode, audioNode) {
+function qcard(q, imgSrc, answerText, answerNote, optsNode, audioNode, ansImg) {
   return el('div', { class: 'qcard' },
     el('div', { class: 'qmeta', text: q.cat + ' für ' + q.p }),
     q.t ? el('p', { class: 'qtext', text: q.t }) : null,
@@ -856,7 +867,8 @@ function qcard(q, imgSrc, answerText, answerNote, optsNode, audioNode) {
     audioNode || null,
     optsNode || null,
     resultBanner(q),
-    answerText != null ? el('div', { class: 'qans pop' }, el('span', { class: 'qlabel', text: answerNote }), answerText) : null);
+    (answerText != null || ansImg) ? el('div', { class: 'qans pop' }, el('span', { class: 'qlabel', text: answerNote || 'Lösung' }), answerText != null ? answerText : null,
+      ansImg ? el('img', { class: 'qimg ansimg', src: ansImg, alt: 'Bild zur Lösung' }) : null) : null);
 }
 
 function teamBadge(t, tn) {
@@ -971,7 +983,7 @@ function imgFor(key) {
   if (S.mode === 'admin') {
     const [c, r] = String(key).split('-').map(Number);
     const x = board().cats[c] && board().cats[c].qs[r];
-    return x ? x.img : '';
+    return x ? (/-s\d+$/.test(String(key)) ? x.ai : x.img) : '';
   }
   return S.imgs[key] || '';
 }
@@ -983,7 +995,7 @@ function viewPlayer(st, preview) {
   const open = st.cats.some(c => c.t.includes(1));
   let main;
   if (st.q) {
-    main = qcard(st.q, imgFor(st.q.im), st.q.a, 'Lösung', st.q.o ? optionsEl(st.q, null) : null, st.q.au ? audioControls(st.q.au, false) : null);
+    main = qcard(st.q, imgFor(st.q.im), st.q.a, 'Lösung', st.q.o ? optionsEl(st.q, null) : null, st.q.au ? audioControls(st.q.au, false) : null, st.q.ai ? imgFor(st.q.ai) : null);
   } else {
     const line = !open ? 'Alle Felder sind gespielt. Danke fürs Mitmachen!'
       : mine ? 'Euer Team ist dran: ' + tn[turnTeam]
@@ -1052,7 +1064,7 @@ function reviewView(c, r) {
     pk: -1, d: h ? 1 : 0, w: h ? h[3] : '', ok: h ? h[4] : 0, ca: mc ? x.ok : -1 };
   return el('div', { class: 'stack' },
     el('p', { class: 'turnline', text: 'Nur Ansicht: Diese Frage wurde schon gespielt.' }),
-    qcard(q, x.img, sol, 'Lösung', mc ? optionsEl({ ...q, d: 1 }, null) : null, q.au ? audioControls(q.au, false) : null),
+    qcard(q, x.img, sol, 'Lösung', mc ? optionsEl({ ...q, d: 1 }, null) : null, q.au ? audioControls(q.au, false) : null, x.ai || null),
     el('button', { class: 'btn bigbtn', type: 'button', text: 'Zurück zum Brett', onclick: () => { S.review = null; render(); } }));
 }
 
@@ -1076,7 +1088,7 @@ function viewAdminGame() {
       el('div', { class: 'panel stack solution' + (done ? ' shown' : '') },
         el('span', { class: 'qlabel', text: done ? 'Lösung (alle sehen sie jetzt)' : 'Lösung (nur du siehst sie)' }),
         el('p', { class: 'solutiontext', text: sol }),
-        null),
+        x.ai ? el('img', { class: done ? 'qimg ansimg' : 'imgprev', src: x.ai, alt: 'Bild zur Lösung' }) : null),
       done ? el('button', { class: 'btn bigbtn', type: 'button', text: 'Weiter zum Brett', onclick: closeQ })
         : el('div', { class: 'stack' }, verdictBox(x, mc),
             el('button', { class: 'btn ghost bigbtn', type: 'button', text: '\u2190 Zurück zum Brett (andere Frage wählen)', onclick: cancelQ })));
@@ -1246,13 +1258,23 @@ function qEditor(x, ci, r, v) {
     try { x.img = await loadImage(f); x.iv = Date.now(); render(); }
     catch (err) { setNote('Das Bild konnte nicht gelesen werden.'); }
   } });
+  const afile = el('input', { id: 'cai-' + id, type: 'file', accept: 'image/*', 'aria-label': 'Bild zur Lösung hinzufügen', onchange: async e => {
+    const f = e.target.files && e.target.files[0];
+    if (!f) return;
+    try { x.ai = await loadImage(f); x.aiv = Date.now(); render(); }
+    catch (err) { setNote('Das Bild konnte nicht gelesen werden.'); }
+  } });
+  const aimg = el('div', { class: 'imgrow' },
+    x.ai ? el('img', { class: 'imgprev', src: x.ai, alt: 'Bild zur Lösung' }) : null,
+    x.ai ? mini('Lösungsbild entfernen', () => { x.ai = ''; x.aiv = 0; render(); }, 'bad') : null,
+    el('div', { class: 'field' }, el('label', { for: 'cai-' + id, text: x.ai ? 'Lösungsbild ersetzen' : 'Bild zur Lösung (optional, wird nach Richtig/Falsch gezeigt)' }), afile));
   const img = el('div', { class: 'imgrow' },
     x.img ? el('img', { class: 'imgprev', src: x.img, alt: 'Bild zur Frage' }) : null,
     x.img ? mini('Bild entfernen', () => { x.img = ''; x.iv = 0; render(); }, 'bad') : null,
     el('div', { class: 'field' }, el('label', { for: 'cf-' + id, text: x.img ? 'Bild ersetzen' : 'Bild hinzufügen (optional)' }), file));
   return el('div', { class: 'qrow' },
     el('div', { class: 'qpts', text: String(v) }),
-    el('div', { class: 'stack' }, seg, q, ans, img, soundEditor(x, id)));
+    el('div', { class: 'stack' }, seg, q, ans, img, soundEditor(x, id), aimg));
 }
 
 function viewEditor() {
