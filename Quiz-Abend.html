@@ -195,7 +195,7 @@ const ADMIN_SALT = 'quizabend-v1', ADMIN_ITER = 150000, ADMIN_HASH = '8985912627
 const PEER_PREFIX = 'qabend-nw-';
 const LSKEY = 'quizabend.sa.v1', SSKEY = 'quizabend.sa.admin', NAMEKEY = 'quizabend.sa.name';
 const LETTERS = 'ABCD';
-const VERSION = 'Version 10';
+const VERSION = 'Version 11';
 
 const lsx = {
   get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
@@ -1055,6 +1055,20 @@ function verdictBox(x, mc) {
 }
 
 /* Schon gespielte Frage ansehen: nur Ansicht, nichts kann geändert werden */
+/* Bild einer schon gespielten Frage ändern (Frage- oder Lösungsbild) */
+function imgChanger(x, f, v, id, label, addLabel) {
+  const file = el('input', { id, type: 'file', accept: 'image/*', 'aria-label': label, onchange: async e => {
+    const fl = e.target.files && e.target.files[0];
+    if (!fl) return;
+    try { x[f] = await loadImage(fl); x[v] = Date.now(); commit(); setNote('Bild geändert.'); }
+    catch (err) { setNote('Das Bild konnte nicht gelesen werden.'); }
+  } });
+  return el('div', { class: 'imgrow' },
+    x[f] ? el('img', { class: 'imgprev', src: x[f], alt: label }) : null,
+    x[f] ? mini('Entfernen', () => { x[f] = ''; x[v] = 0; commit(); }, 'bad') : null,
+    el('div', { class: 'field' }, el('label', { for: id, text: x[f] ? label + ' ersetzen' : addLabel }), file));
+}
+
 function reviewView(c, r) {
   const b = board(), x = b.cats[c].qs[r], p = b.cats[c].vals[r], mc = isMC(x), g = game();
   let h = null;
@@ -1063,8 +1077,12 @@ function reviewView(c, r) {
   const q = { cat: b.cats[c].name, p, t: String(x.q), im: x.img ? imgKey(c, r) : '', au: x.au ? auKey(c, r) : '', o: mc ? x.opts.slice(0, 4) : null,
     pk: -1, d: h ? 1 : 0, w: h ? h[3] : '', ok: h ? h[4] : 0, ca: mc ? x.ok : -1 };
   return el('div', { class: 'stack' },
-    el('p', { class: 'turnline', text: 'Nur Ansicht: Diese Frage wurde schon gespielt.' }),
+    el('p', { class: 'turnline', text: 'Schon gespielt: Die Wertung bleibt, nur die Bilder kannst du ändern.' }),
     qcard(q, x.img, sol, 'Lösung', mc ? optionsEl({ ...q, d: 1 }, null) : null, q.au ? audioControls(q.au, false) : null, x.ai || null),
+    el('div', { class: 'panel stack' },
+      el('span', { class: 'qlabel', text: 'Bilder ändern' }),
+      imgChanger(x, 'img', 'iv', 'rv-img', 'Bild der Frage', 'Bild zur Frage hinzufügen'),
+      imgChanger(x, 'ai', 'aiv', 'rv-ai', 'Bild zur Lösung', 'Bild zur Lösung hinzufügen')),
     el('button', { class: 'btn bigbtn', type: 'button', text: 'Zurück zum Brett', onclick: () => { S.review = null; render(); } }));
 }
 
