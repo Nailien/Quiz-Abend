@@ -195,7 +195,7 @@ const ADMIN_SALT = 'quizabend-v1', ADMIN_ITER = 150000, ADMIN_HASH = '8985912627
 const PEER_PREFIX = 'qabend-nw-';
 const LSKEY = 'quizabend.sa.v1', SSKEY = 'quizabend.sa.admin', NAMEKEY = 'quizabend.sa.name';
 const LETTERS = 'ABCD';
-const VERSION = 'Version 11';
+const VERSION = 'Version 12';
 
 const lsx = {
   get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
@@ -420,18 +420,30 @@ const imgKey = (c, r) => { const x = board().cats[c].qs[r]; return c + '-' + r +
 
 const aiKey = (c, r) => { const x = board().cats[c].qs[r]; return c + '-' + r + '-s' + (x.aiv || 0); };
 const auKey = (c, r) => { const x = board().cats[c].qs[r]; return c + '-' + r + '-a' + (x.av || 0); };
+/* Was die Spieler gerade sehen: die offene Frage oder (Admin schaut sich ein gespieltes Feld an) diese Frage mit Lösung */
+function focusCur() {
+  const g = game();
+  if (g.cur) return g.cur;
+  const rv = S.review;
+  if (!rv) return null;
+  const b = board(), c = b.cats[rv.c], x = c && c.qs[rv.r];
+  if (!x || !hasContent(x)) return null;
+  let h = null;
+  g.hist.forEach(e => { if (e[0] === rv.c && (e[5] === rv.r || (e[5] === undefined && e[1] === c.vals[rv.r]))) h = e; });
+  return { c: rv.c, r: rv.r, team: h ? h[2] : 0, pick: -1, ok: h ? h[3] : '', res: h ? h[4] : -1, done: true, ap: 0, review: true };
+}
 /* Bild zur Lösung: wird erst nach Richtig/Falsch an die Spieler geschickt */
 function curAnsImg() {
-  const g = game();
-  if (!g.cur || !isDone(g.cur)) return null;
-  const x = board().cats[g.cur.c] && board().cats[g.cur.c].qs[g.cur.r];
-  return x && x.ai ? { k: aiKey(g.cur.c, g.cur.r), d: x.ai } : null;
+  const fc = focusCur();
+  if (!fc || !isDone(fc)) return null;
+  const x = board().cats[fc.c] && board().cats[fc.c].qs[fc.r];
+  return x && x.ai ? { k: aiKey(fc.c, fc.r), d: x.ai } : null;
 }
 function curAudio() {
-  const g = game();
-  if (!g.cur) return null;
-  const x = board().cats[g.cur.c] && board().cats[g.cur.c].qs[g.cur.r];
-  return x && x.au ? { k: auKey(g.cur.c, g.cur.r), d: x.au } : null;
+  const fc = focusCur();
+  if (!fc) return null;
+  const x = board().cats[fc.c] && board().cats[fc.c].qs[fc.r];
+  return x && x.au ? { k: auKey(fc.c, fc.r), d: x.au } : null;
 }
 
 function sanitizeGame() {
@@ -445,20 +457,20 @@ function sanitizeGame() {
 }
 
 function publicState() {
-  const b = board(), g = game();
+  const b = board(), g = game(), fc = focusCur();
   const cats = b.cats.map((c, ci) => ({
     n: c.name,
     v: c.vals.slice(),
     t: b.values.map((v, ri) => hasContent(c.qs[ri]) ? (g.used[ci + '-' + ri] ? 2 : 1) : 0)
   }));
   let q = null;
-  if (g.cur) {
-    const c = b.cats[g.cur.c], x = c && c.qs[g.cur.r];
+  if (fc) {
+    const c = b.cats[fc.c], x = c && c.qs[fc.r];
     if (x) {
-      const done = isDone(g.cur), mc = isMC(x);
-      q = { c: g.cur.c, r: g.cur.r, p: c.vals[g.cur.r], cat: c.name, t: String(x.q).slice(0, 500),
-        im: x.img ? imgKey(g.cur.c, g.cur.r) : '', au: x.au ? auKey(g.cur.c, g.cur.r) : '', ai: done && x.ai ? aiKey(g.cur.c, g.cur.r) : '', ap: g.cur.ap || 0, ty: mc ? 'mc' : 'text', o: mc ? x.opts.slice(0, 4) : null,
-        pk: mc && g.cur.pick >= 0 ? g.cur.pick : -1, d: done ? 1 : 0, w: g.cur.ok || '', ok: g.cur.res === 0 ? 0 : 1,
+      const done = isDone(fc), mc = isMC(x);
+      q = { c: fc.c, r: fc.r, p: c.vals[fc.r], cat: c.name, t: String(x.q).slice(0, 500),
+        im: x.img ? imgKey(fc.c, fc.r) : '', au: x.au ? auKey(fc.c, fc.r) : '', ai: done && x.ai ? aiKey(fc.c, fc.r) : '', ap: fc.ap || 0, ty: mc ? 'mc' : 'text', o: mc ? x.opts.slice(0, 4) : null,
+        pk: mc && fc.pick >= 0 ? fc.pick : -1, d: done ? 1 : 0, w: fc.ok || '', ok: fc.res === 0 ? 0 : 1,
         a: done && !mc ? String(x.a).slice(0, 200) : null, ca: done && mc ? x.ok : -1 };
     }
   }
@@ -466,10 +478,10 @@ function publicState() {
     sr: !!g.showResult, sc: g.scores, tm: g.team, tn: g.tn };
 }
 function curImg() {
-  const g = game();
-  if (!g.cur) return null;
-  const x = board().cats[g.cur.c] && board().cats[g.cur.c].qs[g.cur.r];
-  return x && x.img ? { k: imgKey(g.cur.c, g.cur.r), d: x.img } : null;
+  const fc = focusCur();
+  if (!fc) return null;
+  const x = board().cats[fc.c] && board().cats[fc.c].qs[fc.r];
+  return x && x.img ? { k: imgKey(fc.c, fc.r), d: x.img } : null;
 }
 
 function liveView() { return S.mode === 'admin' && (S.tab === 'game' || S.preview); }
@@ -841,7 +853,7 @@ function boardEl(st, mode, onPick, onUsed) {
 }
 
 function resultBanner(q) {
-  if (!q || !q.d) return null;
+  if (!q || !q.d || !q.w) return null;
   return el('div', { class: 'resbanner ' + (q.ok ? 'good' : 'bad'),
     text: q.ok ? '✓ ' + q.w + ' liegt richtig: +' + q.p + ' Punkte' : '✗ ' + q.w + ' liegt falsch: 0 Punkte' });
 }
@@ -1069,6 +1081,8 @@ function imgChanger(x, f, v, id, label, addLabel) {
     el('div', { class: 'field' }, el('label', { for: id, text: x[f] ? label + ' ersetzen' : addLabel }), file));
 }
 
+function openReview(c, r) { S.review = { c, r }; broadcast(); render(); }
+function closeReview() { S.review = null; broadcast(); render(); }
 function reviewView(c, r) {
   const b = board(), x = b.cats[c].qs[r], p = b.cats[c].vals[r], mc = isMC(x), g = game();
   let h = null;
@@ -1077,13 +1091,13 @@ function reviewView(c, r) {
   const q = { cat: b.cats[c].name, p, t: String(x.q), im: x.img ? imgKey(c, r) : '', au: x.au ? auKey(c, r) : '', o: mc ? x.opts.slice(0, 4) : null,
     pk: -1, d: h ? 1 : 0, w: h ? h[3] : '', ok: h ? h[4] : 0, ca: mc ? x.ok : -1 };
   return el('div', { class: 'stack' },
-    el('p', { class: 'turnline', text: 'Schon gespielt: Die Wertung bleibt, nur die Bilder kannst du ändern.' }),
+    el('p', { class: 'turnline', text: 'Schon gespielt: Die Spieler sehen die Frage jetzt auch. Die Wertung bleibt, nur die Bilder kannst du ändern.' }),
     qcard(q, x.img, sol, 'Lösung', mc ? optionsEl({ ...q, d: 1 }, null) : null, q.au ? audioControls(q.au, false) : null, x.ai || null),
     el('div', { class: 'panel stack' },
       el('span', { class: 'qlabel', text: 'Bilder ändern' }),
       imgChanger(x, 'img', 'iv', 'rv-img', 'Bild der Frage', 'Bild zur Frage hinzufügen'),
       imgChanger(x, 'ai', 'aiv', 'rv-ai', 'Bild zur Lösung', 'Bild zur Lösung hinzufügen')),
-    el('button', { class: 'btn bigbtn', type: 'button', text: 'Zurück zum Brett', onclick: () => { S.review = null; render(); } }));
+    el('button', { class: 'btn bigbtn', type: 'button', text: 'Zurück zum Brett', onclick: closeReview }));
 }
 
 function viewAdminGame() {
@@ -1117,7 +1131,7 @@ function viewAdminGame() {
     const open = st.cats.some(c => c.t.includes(1));
     main = el('div', { class: 'stack' },
       el('p', { class: 'turnline', text: !open ? 'Alle Felder gespielt' : g.tn[g.turn === 1 ? 1 : 0] + ' wählt ein Feld' }),
-      boardEl(st, 'admin', (c, r) => openTile(c, r), (c, r) => { S.review = { c, r }; render(); }),
+      boardEl(st, 'admin', (c, r) => openTile(c, r), openReview),
       (g.showResult || !open) ? resultsPanel(st) : null);
   }
   return el('div', { class: 'layout admin' }, el('div', { class: 'stack' }, bar, main), teamCards(st, true));
